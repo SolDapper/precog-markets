@@ -1,0 +1,69 @@
+{
+  "name": "precog-markets",
+  "version": "0.1.0",
+  "description": "JavaScript SDK for Precog Markets — a Solana prediction market program — pari-mutuel markets with SOL, SPL Token, and Token-2022 support",
+  "type": "module",
+  "main": "./src/index.js",
+  "module": "./src/index.js",
+  "exports": {
+    ".": {
+      "import": "./src/index.js",
+      "types": "./src/index.d.ts"
+    },
+    "./constants": {
+      "import": "./src/constants.js",
+      "types": "./src/constants.d.ts"
+    },
+    "./pda": {
+      "import": "./src/pda.js",
+      "types": "./src/pda.d.ts"
+    },
+    "./serialization": {
+      "import": "./src/serialization.js",
+      "types": "./src/serialization.d.ts"
+    },
+    "./accounts": {
+      "import": "./src/accounts.js",
+      "types": "./src/accounts.d.ts"
+    },
+    "./instructions": {
+      "import": "./src/instructions.js",
+      "types": "./src/instructions.d.ts"
+    },
+    "./client": {
+      "import": "./src/client.js",
+      "types": "./src/client.d.ts"
+    }
+  },
+  "files": [
+    "src/**/*.js",
+    "src/**/*.d.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test test/",
+    "lint": "echo 'no lint configured'"
+  },
+  "peerDependencies": {
+    "@solana/web3.js": "^1.87.0"
+  },
+  "peerDependenciesMeta": {
+    "@solana/spl-token": {
+      "optional": true
+    }
+  },
+  "keywords": [
+    "solana",
+    "prediction-market",
+    "pari-mutuel",
+    "spl-token",
+    "token-2022",
+    "multisig",
+    "sdk"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  }
+}

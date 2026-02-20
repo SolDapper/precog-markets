@@ -7,7 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 
 /** Prediction-market program ID */
 export const PROGRAM_ID = new PublicKey(
-  "6KfoCcTUVsS8i1h31dhK8cydvDXGmRyTdya7jbjoymn9"
+  "PredMkt1111111111111111111111111111111111111"
 );
 
 /** SPL Token program ID */
@@ -53,31 +53,33 @@ export const SEEDS = {
   PROPOSAL: Buffer.from("proposal"),
 };
 
-// ── Instruction discriminators (single u8 byte) ─────────────────────
+// ── Instruction discriminators (little-endian u32) ───────────────────
 export const DISCRIMINATORS = {
-  INITIALIZE_PROTOCOL: Buffer.from([0]),
-  CREATE_MARKET: Buffer.from([1]),
-  PLACE_BET: Buffer.from([2]),
-  RESOLVE_MARKET: Buffer.from([3]),
-  FINALIZE_MARKET: Buffer.from([4]),
-  CLAIM_WINNINGS: Buffer.from([5]),
-  VOID_MARKET: Buffer.from([6]),
-  CLAIM_REFUND: Buffer.from([7]),
-  UPDATE_PROTOCOL_CONFIG: Buffer.from([8]),
-  CREATE_MULTISIG: Buffer.from([9]),
-  CREATE_PROPOSAL: Buffer.from([10]),
-  APPROVE_PROPOSAL: Buffer.from([11]),
-  EXECUTE_PROPOSAL: Buffer.from([12]),
-  HARVEST_WITHHELD_TOKENS: Buffer.from([13]),
+  INITIALIZE_PROTOCOL: Buffer.from([0, 0, 0, 0]),
+  CREATE_MARKET: Buffer.from([1, 0, 0, 0]),
+  PLACE_BET: Buffer.from([2, 0, 0, 0]),
+  RESOLVE_MARKET: Buffer.from([3, 0, 0, 0]),
+  FINALIZE_MARKET: Buffer.from([4, 0, 0, 0]),
+  CLAIM_WINNINGS: Buffer.from([5, 0, 0, 0]),
+  VOID_MARKET: Buffer.from([6, 0, 0, 0]),
+  CLAIM_REFUND: Buffer.from([7, 0, 0, 0]),
+  UPDATE_PROTOCOL_CONFIG: Buffer.from([8, 0, 0, 0]),
+  CREATE_MULTISIG: Buffer.from([9, 0, 0, 0]),
+  CREATE_PROPOSAL: Buffer.from([10, 0, 0, 0]),
+  APPROVE_PROPOSAL: Buffer.from([11, 0, 0, 0]),
+  EXECUTE_PROPOSAL: Buffer.from([12, 0, 0, 0]),
+  HARVEST_WITHHELD_TOKENS: Buffer.from([13, 0, 0, 0]),
 };
 
-// ── Account discriminators (8-byte magic headers from IDL) ──────────
+// ── Account discriminators (8-byte) ─────────────────────────────────
+// Convention: first 8 bytes of sha256("account:<AccountName>")
+// These are placeholders — replace with the real program values.
 export const ACCOUNT_DISCRIMINATORS = {
-  MARKET: Buffer.from([0x4d, 0x41, 0x52, 0x4b, 0x45, 0x54, 0x56, 0x32]),           // MARKETV2
-  USER_POSITION: Buffer.from([0x50, 0x4f, 0x53, 0x49, 0x54, 0x4e, 0x56, 0x31]),     // POSITNV1
-  PROTOCOL_CONFIG: Buffer.from([0x50, 0x52, 0x4f, 0x54, 0x4f, 0x43, 0x4f, 0x4c]),   // PROTOCOL
-  MULTISIG_AUTHORITY: Buffer.from([0x4d, 0x55, 0x4c, 0x54, 0x53, 0x49, 0x47, 0x31]),// MULTSIG1
-  MULTISIG_PROPOSAL: Buffer.from([0x50, 0x52, 0x4f, 0x50, 0x4f, 0x53, 0x4c, 0x31]),// PROPOSL1
+  MARKET: Buffer.from([0x4d, 0x61, 0x72, 0x6b, 0x65, 0x74, 0x00, 0x00]),
+  USER_POSITION: Buffer.from([0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e]),
+  PROTOCOL_CONFIG: Buffer.from([0x50, 0x72, 0x6f, 0x74, 0x6f, 0x43, 0x66, 0x67]),
+  MULTISIG_AUTHORITY: Buffer.from([0x4d, 0x75, 0x6c, 0x74, 0x69, 0x53, 0x69, 0x67]),
+  MULTISIG_PROPOSAL: Buffer.from([0x50, 0x72, 0x6f, 0x70, 0x6f, 0x73, 0x61, 0x6c]),
 };
 
 // ── Enums ────────────────────────────────────────────────────────────

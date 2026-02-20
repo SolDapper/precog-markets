@@ -1,6 +1,6 @@
 # precog-markets
 
-A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana **Precog Markets** program — a trustless pari-mutuel market supporting native SOL, SPL Token, and Token-2022 denominations with on-chain multi-sig governance.
+A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana **Precog Markets** program — a trustless pari-mutuel prediction market supporting native SOL, SPL Token, and Token-2022 denominations with on-chain multi-sig governance.
 
 > **No Anchor required.** This SDK uses raw `@solana/web3.js` `TransactionInstruction` objects with hand-rolled Borsh serialization.
 
@@ -10,6 +10,7 @@ A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana
 - **5 account decoders** (Market, UserPosition, ProtocolConfig, MultisigAuthority, MultisigProposal)
 - **PDA derivation** helpers for every account type
 - **High-level `PrecogMarketsClient`** with auto-PDA resolution, `sendTransaction`, and batch/gPA queries
+- **Discriminator-filtered RPC queries** — all `getProgramAccounts` calls use 8-byte account discriminator `memcmp` filters for efficient fetching
 - **Low-level `BorshWriter`/`BorshReader`** for custom serialization needs
 - **Full TypeScript declarations** (`index.d.ts`)
 - **ESM-only** (`"type": "module"`)
@@ -42,8 +43,8 @@ const { protocolConfig } = await client.initializeProtocol(
 const { market } = await client.createSolMarket({
   payer: admin,
   marketId: 1n,
-  title: "Will ETH flip BTC by 2026?",
-  description: "Market cap flip",
+  title: "Will $PELF hit 10m MC by Jun?",
+  description: "Market cap milestone",
   outcomeLabels: ["Yes", "No"],
   resolutionDeadline: BigInt(Math.floor(Date.now() / 1000) + 86400 * 30),
 });
@@ -59,7 +60,7 @@ const { position } = await client.placeSolBet({
 
 // 4. Fetch & inspect
 const mkt = await client.fetchMarket(market);
-console.log(mkt.title);           // "Will ETH flip BTC by 2026?"
+console.log(mkt.title);           // "Will $PELF hit 10m MC by Jun?"
 console.log(mkt.outcomeLabels);   // ["Yes", "No"]
 console.log(mkt.outcomePools);    // [1000000000n, 0n]
 console.log(mkt.statusName);      // "Open"
@@ -97,7 +98,8 @@ src/
 | `ProposalActionTag` | Enum tags for multisig proposal actions |
 | `ErrorCode` / `ErrorName` | Bidirectional error code ↔ name maps |
 | `SEEDS` | PDA seed buffers |
-| `DISCRIMINATORS` | 4-byte instruction discriminators |
+| `DISCRIMINATORS` | Single-byte (`u8`) instruction discriminators |
+| `ACCOUNT_DISCRIMINATORS` | 8-byte account magic headers for `memcmp` filtering |
 | `MAX_OUTCOMES`, `MAX_FEE_BPS`, etc. | Protocol limits |
 
 ### PDA Derivation (`precog-markets/pda`)
@@ -138,9 +140,21 @@ const market = decodeMarket(accountInfo.data);
 | `decodeMultisigAuthority(data)` | `MultisigAuthorityAccount` |
 | `decodeMultisigProposal(data)` | `MultisigProposalAccount` |
 
+#### Market Account Fields
+
+The Market account includes Token-2022 transfer fee metadata:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `hasTransferFee` | `boolean` | Whether the token mint has a transfer fee extension |
+| `transferFeeBps` | `number` | Transfer fee in basis points (Token-2022 only) |
+| `maxTransferFee` | `bigint` | Maximum transfer fee in token base units |
+
 ### Instruction Builders (`precog-markets/instructions`)
 
 Each builder returns a `TransactionInstruction`. Pass your own accounts — the SDK never does PDA resolution at this level.
+
+> **Note:** Instruction data uses a single `u8` byte discriminator (NOT a 4-byte or 8-byte Anchor discriminator).
 
 ```js
 import { placeBet } from "precog-markets";
@@ -288,6 +302,20 @@ Open ──→ Resolved ──→ (24h dispute) ──→ Finalized
 3. **Dispute window** — 24h period for challenges
 4. **Finalized** — Anyone cranks `finalizeMarket`; winners claim payouts
 5. **Voided** (alternate) — Authority voids; all bettors get full refunds
+
+## Account Discriminators
+
+Every on-chain account begins with an 8-byte magic header used for type identification:
+
+| Account | Discriminator (hex) | ASCII |
+|---------|-------------------|-------|
+| Market | `4d 41 52 4b 45 54 56 32` | `MARKETV2` |
+| UserPosition | `50 4f 53 49 54 4e 56 31` | `POSITNV1` |
+| ProtocolConfig | `50 52 4f 54 4f 43 4f 4c` | `PROTOCOL` |
+| MultisigAuthority | `4d 55 4c 54 53 49 47 31` | `MULTSIG1` |
+| MultisigProposal | `50 52 4f 50 4f 53 4c 31` | `PROPOSL1` |
+
+The SDK uses these discriminators in all `getProgramAccounts` calls via `memcmp` filters for efficient RPC queries.
 
 ## Error Handling
 

@@ -59,9 +59,6 @@ const DENOM_MAP = { 0: "NativeSol", 1: "SplToken", 2: "Token2022" };
  * @property {string} denominationName
  * @property {PublicKey} tokenMint
  * @property {number} tokenDecimals
- * @property {boolean} hasTransferFee
- * @property {number} transferFeeBps
- * @property {bigint} maxTransferFee
  * @property {string} title
  * @property {string} description
  * @property {string[]} outcomeLabels
@@ -103,9 +100,6 @@ export function decodeMarket(data) {
 
   const tokenMint = r.readPubkey();
   const tokenDecimals = r.readU8();
-  const hasTransferFee = r.readBool();
-  const transferFeeBps = r.readU16();
-  const maxTransferFee = r.readU64();
 
   // title: [u8; 128]
   const titleBytes = r.readFixedBytes(MAX_TITLE_LEN);
@@ -131,7 +125,8 @@ export function decodeMarket(data) {
     outcomeLabels.push(decodeFixedString(rawLabels[i], labelLens[i]));
   }
 
-  // skip reserved[209]
+  // skip reserved[220]
+  // r.skip(220);
 
   return {
     discriminator,
@@ -154,9 +149,6 @@ export function decodeMarket(data) {
     denominationName,
     tokenMint,
     tokenDecimals,
-    hasTransferFee,
-    transferFeeBps,
-    maxTransferFee,
     title,
     description,
     outcomeLabels,

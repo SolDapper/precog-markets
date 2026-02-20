@@ -313,11 +313,11 @@ export function finalizeMarket(accounts, programId = PROGRAM_ID) {
  */
 export function claimWinnings(accounts, programId = PROGRAM_ID) {
   const keys = [
-    ro(accounts.market),
+    w(accounts.market),
     w(accounts.vault),
     w(accounts.position),
     ws(accounts.claimant),
-    ro(accounts.protocolConfig),
+    w(accounts.protocolConfig),
     w(accounts.treasury),
     ro(SYSTEM_PROGRAM_ID),
   ];
@@ -379,7 +379,7 @@ export function voidMarket(accounts, programId = PROGRAM_ID) {
  */
 export function claimRefund(accounts, programId = PROGRAM_ID) {
   const keys = [
-    ro(accounts.market),
+    w(accounts.market),
     w(accounts.vault),
     w(accounts.position),
     ws(accounts.claimant),

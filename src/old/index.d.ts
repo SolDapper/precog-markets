@@ -206,9 +206,6 @@ export interface MarketAccount {
   denominationName: string;
   tokenMint: PublicKey;
   tokenDecimals: number;
-  hasTransferFee: boolean;
-  transferFeeBps: number;
-  maxTransferFee: bigint;
   title: string;
   description: string;
   outcomeLabels: string[];

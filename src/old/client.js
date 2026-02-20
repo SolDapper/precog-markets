@@ -11,7 +11,7 @@ import {
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 
-import { PROGRAM_ID, TokenDenomination, SYSTEM_PROGRAM_ID, ACCOUNT_DISCRIMINATORS } from "./constants.js";
+import { PROGRAM_ID, TokenDenomination, SYSTEM_PROGRAM_ID } from "./constants.js";
 
 import {
   findProtocolConfigAddress,
@@ -32,23 +32,6 @@ import {
 } from "./accounts.js";
 
 import * as ix from "./instructions.js";
-
-// ═══════════════════════════════════════════════════════════════════════
-// Minimal base58 encoder for memcmp filter bytes
-// ═══════════════════════════════════════════════════════════════════════
-const BS58_ALPHA = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-function bs58Encode(buf) {
-  const bytes = [...buf];
-  let zeros = 0;
-  while (zeros < bytes.length && bytes[zeros] === 0) zeros++;
-  const digits = [0];
-  for (let i = zeros; i < bytes.length; i++) {
-    let carry = bytes[i];
-    for (let j = 0; j < digits.length; j++) { carry += digits[j] * 256; digits[j] = carry % 58; carry = (carry / 58) | 0; }
-    while (carry > 0) { digits.push(carry % 58); carry = (carry / 58) | 0; }
-  }
-  return BS58_ALPHA[0].repeat(zeros) + digits.reverse().map(d => BS58_ALPHA[d]).join('');
-}
 
 // ═══════════════════════════════════════════════════════════════════════
 // Client
@@ -184,9 +167,7 @@ export class PrecogMarketsClient {
    * @returns {Promise<Array<{ pubkey: PublicKey, account: import("./accounts.js").MarketAccount }>>}
    */
   async getAllMarkets(filters = {}) {
-    const gpaFilters = [
-      { memcmp: { offset: 0, bytes: bs58Encode(ACCOUNT_DISCRIMINATORS.MARKET) } },
-    ];
+    const gpaFilters = [];
 
     if (filters.authority) {
       // authority is at offset: 8 (disc) + 1 (bump) + 8 (marketId) = 17
@@ -199,7 +180,7 @@ export class PrecogMarketsClient {
     }
 
     const accounts = await this.connection.getProgramAccounts(this.programId, {
-      filters: gpaFilters,
+      filters: gpaFilters.length ? gpaFilters : undefined,
     });
 
     const results = [];
@@ -223,7 +204,6 @@ export class PrecogMarketsClient {
     // owner is at offset: 8 (disc) + 1 (bump) + 32 (market) = 41
     const accounts = await this.connection.getProgramAccounts(this.programId, {
       filters: [
-        { memcmp: { offset: 0, bytes: bs58Encode(ACCOUNT_DISCRIMINATORS.USER_POSITION) } },
         { memcmp: { offset: 41, bytes: owner.toBase58() } },
       ],
     });
@@ -249,7 +229,6 @@ export class PrecogMarketsClient {
     // market is at offset: 8 (disc) + 1 (bump) = 9
     const accounts = await this.connection.getProgramAccounts(this.programId, {
       filters: [
-        { memcmp: { offset: 0, bytes: bs58Encode(ACCOUNT_DISCRIMINATORS.USER_POSITION) } },
         { memcmp: { offset: 9, bytes: market.toBase58() } },
       ],
     });
@@ -275,7 +254,6 @@ export class PrecogMarketsClient {
     // multisig is at offset: 8 (disc) + 1 (bump) = 9
     const accounts = await this.connection.getProgramAccounts(this.programId, {
       filters: [
-        { memcmp: { offset: 0, bytes: bs58Encode(ACCOUNT_DISCRIMINATORS.MULTISIG_PROPOSAL) } },
         { memcmp: { offset: 9, bytes: multisig.toBase58() } },
       ],
     });

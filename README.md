@@ -30,18 +30,10 @@ import { PrecogMarketsClient } from "precog-markets";
 
 const connection = new Connection("https://api.devnet.solana.com", "confirmed");
 const client = new PrecogMarketsClient(connection);
-const admin = Keypair.generate();
 
-// 1. Initialize protocol (one-time)
-const { protocolConfig } = await client.initializeProtocol(
-  admin,
-  admin.publicKey,  // treasury
-  200                // 2% default fee
-);
-
-// 2. Create a SOL market
+// 1. Create a SOL market
 const { market } = await client.createSolMarket({
-  payer: admin,
+  payer: creator,
   marketId: 1n,
   title: "Will $PELF hit 10m MC by Jun?",
   description: "Market cap milestone",
@@ -49,7 +41,7 @@ const { market } = await client.createSolMarket({
   resolutionDeadline: BigInt(Math.floor(Date.now() / 1000) + 86400 * 30),
 });
 
-// 3. Place a bet
+// 2. Place a bet
 const bettor = Keypair.generate();
 const { position } = await client.placeSolBet({
   bettor,
@@ -58,14 +50,14 @@ const { position } = await client.placeSolBet({
   amount: LAMPORTS_PER_SOL, // 1 SOL
 });
 
-// 4. Fetch & inspect
+// 3. Fetch & inspect
 const mkt = await client.fetchMarket(market);
 console.log(mkt.title);           // "Will $PELF hit 10m MC by Jun?"
 console.log(mkt.outcomeLabels);   // ["Yes", "No"]
 console.log(mkt.outcomePools);    // [1000000000n, 0n]
 console.log(mkt.statusName);      // "Open"
 
-// 5. Implied probabilities
+// 4. Implied probabilities
 const probs = PrecogMarketsClient.getImpliedProbabilities(
   mkt.outcomePools, mkt.totalPool
 );
@@ -236,7 +228,7 @@ For non-SOL markets, use `createTokenMarket` and `placeTokenBet`:
 import { TOKEN_PROGRAM_ID, TokenDenomination } from "precog-markets";
 
 const { market, vaultAuthority } = await client.createTokenMarket({
-  payer: admin,
+  payer: creator,
   marketId: 2n,
   title: "USDC market",
   description: "...",

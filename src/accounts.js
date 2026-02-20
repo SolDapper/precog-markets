@@ -62,6 +62,8 @@ const DENOM_MAP = { 0: "NativeSol", 1: "SplToken", 2: "Token2022" };
  * @property {boolean} hasTransferFee
  * @property {number} transferFeeBps
  * @property {bigint} maxTransferFee
+ * @property {PublicKey} creator
+ * @property {number} creatorFeeBps
  * @property {string} title
  * @property {string} description
  * @property {string[]} outcomeLabels
@@ -107,6 +109,10 @@ export function decodeMarket(data) {
   const transferFeeBps = r.readU16();
   const maxTransferFee = r.readU64();
 
+  // Creator fee split fields (v0.2.0)
+  const creator = r.readPubkey();
+  const creatorFeeBps = r.readU16();
+
   // title: [u8; 128]
   const titleBytes = r.readFixedBytes(MAX_TITLE_LEN);
   const titleLen = r.readU16();
@@ -131,7 +137,7 @@ export function decodeMarket(data) {
     outcomeLabels.push(decodeFixedString(rawLabels[i], labelLens[i]));
   }
 
-  // skip reserved[209]
+  // skip reserved[175]
 
   return {
     discriminator,
@@ -157,6 +163,8 @@ export function decodeMarket(data) {
     hasTransferFee,
     transferFeeBps,
     maxTransferFee,
+    creator,
+    creatorFeeBps,
     title,
     description,
     outcomeLabels,

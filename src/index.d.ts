@@ -209,6 +209,10 @@ export interface MarketAccount {
   hasTransferFee: boolean;
   transferFeeBps: number;
   maxTransferFee: bigint;
+  /** Wallet that created this market; receives creatorFeeBps of each payout */
+  creator: PublicKey;
+  /** fee_bps minus protocol default_fee_bps; zero if no override was set */
+  creatorFeeBps: number;
   title: string;
   description: string;
   outcomeLabels: string[];
@@ -354,8 +358,12 @@ export interface ClaimWinningsAccounts {
   claimant: PublicKey;
   protocolConfig: PublicKey;
   treasury: PublicKey;
+  /** Market creator wallet; receives creator_fee_bps portion */
+  creator: PublicKey;
   claimantTokenAccount?: PublicKey;
   treasuryTokenAccount?: PublicKey;
+  /** Creator's token account (SPL/Token-2022 only) */
+  creatorTokenAccount?: PublicKey;
   tokenVault?: PublicKey;
   vaultAuthority?: PublicKey;
   tokenMint?: PublicKey;
@@ -605,6 +613,8 @@ export declare class PrecogMarketsClient {
     market: PublicKey;
     position: PublicKey;
     treasury: PublicKey;
+    /** Market creator wallet */
+    creator: PublicKey;
     opts?: ConfirmOptions;
   }): Promise<{ signature: string }>;
 
@@ -613,8 +623,12 @@ export declare class PrecogMarketsClient {
     market: PublicKey;
     position: PublicKey;
     treasury: PublicKey;
+    /** Market creator wallet */
+    creator: PublicKey;
     claimantTokenAccount: PublicKey;
     treasuryTokenAccount: PublicKey;
+    /** Creator's token account */
+    creatorTokenAccount: PublicKey;
     tokenVault: PublicKey;
     tokenMint: PublicKey;
     tokenProgram: PublicKey;

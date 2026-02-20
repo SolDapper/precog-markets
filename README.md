@@ -134,13 +134,23 @@ const market = decodeMarket(accountInfo.data);
 
 #### Market Account Fields
 
-The Market account includes Token-2022 transfer fee metadata:
+The Market account includes Token-2022 transfer fee metadata and creator fee split fields:
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `hasTransferFee` | `boolean` | Whether the token mint has a transfer fee extension |
 | `transferFeeBps` | `number` | Transfer fee in basis points (Token-2022 only) |
 | `maxTransferFee` | `bigint` | Maximum transfer fee in token base units |
+| `creator` | `PublicKey` | Wallet that created this market; receives `creatorFeeBps` of each winning claim |
+| `creatorFeeBps` | `number` | `feeBps - defaultFeeBps`; zero if no override was set |
+
+#### Fee Model
+
+Total fee = `market.feeBps`. On each winning claim:
+- **Protocol** receives `protocolConfig.defaultFeeBps` worth → sent to `protocolConfig.treasury`
+- **Creator** receives `market.creatorFeeBps` worth → sent to `market.creator`
+
+When creating a market, if `feeBpsOverride` is set it must be ≥ the protocol `defaultFeeBps`. The excess becomes the creator's cut.
 
 ### Instruction Builders (`precog-markets/instructions`)
 
@@ -164,7 +174,7 @@ const ix = placeBet(
 | `placeBet(accounts, args)` | Deposit SOL/tokens on an outcome |
 | `resolveMarket(accounts, args)` | Single-sig resolve |
 | `finalizeMarket(accounts)` | Permissionless crank after dispute window |
-| `claimWinnings(accounts)` | Claim payout |
+| `claimWinnings(accounts)` | Claim payout (fees split to treasury + creator) |
 | `voidMarket(accounts)` | Void a market |
 | `claimRefund(accounts)` | Refund on voided markets |
 | `updateProtocolConfig(accounts, args)` | Admin config update |

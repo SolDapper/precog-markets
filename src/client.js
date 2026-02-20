@@ -562,6 +562,7 @@ export class PrecogMarketsClient {
         claimant: params.claimant.publicKey,
         protocolConfig,
         treasury: params.treasury,
+        creator: params.creator,
       },
       this.programId
     );
@@ -581,8 +582,10 @@ export class PrecogMarketsClient {
    * @param {PublicKey} params.market
    * @param {PublicKey} params.position
    * @param {PublicKey} params.treasury
+   * @param {PublicKey} params.creator - Market creator wallet
    * @param {PublicKey} params.claimantTokenAccount
    * @param {PublicKey} params.treasuryTokenAccount
+   * @param {PublicKey} params.creatorTokenAccount - Creator's token account
    * @param {PublicKey} params.tokenVault
    * @param {PublicKey} params.tokenMint
    * @param {PublicKey} params.tokenProgram
@@ -601,8 +604,10 @@ export class PrecogMarketsClient {
         claimant: params.claimant.publicKey,
         protocolConfig,
         treasury: params.treasury,
+        creator: params.creator,
         claimantTokenAccount: params.claimantTokenAccount,
         treasuryTokenAccount: params.treasuryTokenAccount,
+        creatorTokenAccount: params.creatorTokenAccount,
         tokenVault: params.tokenVault,
         vaultAuthority,
         tokenMint: params.tokenMint,

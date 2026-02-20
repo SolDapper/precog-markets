@@ -298,8 +298,10 @@ export function finalizeMarket(accounts, programId = PROGRAM_ID) {
  * @property {PublicKey} claimant
  * @property {PublicKey} protocolConfig
  * @property {PublicKey} treasury
+ * @property {PublicKey} creator - Market creator wallet; receives creator_fee_bps portion
  * @property {PublicKey} [claimantTokenAccount]
  * @property {PublicKey} [treasuryTokenAccount]
+ * @property {PublicKey} [creatorTokenAccount] - Creator's token account (SPL/Token-2022 only)
  * @property {PublicKey} [tokenVault]
  * @property {PublicKey} [vaultAuthority]
  * @property {PublicKey} [tokenMint]
@@ -319,12 +321,14 @@ export function claimWinnings(accounts, programId = PROGRAM_ID) {
     ws(accounts.claimant),
     ro(accounts.protocolConfig),
     w(accounts.treasury),
+    w(accounts.creator),
     ro(SYSTEM_PROGRAM_ID),
   ];
 
   if (accounts.claimantTokenAccount) {
     keys.push(w(accounts.claimantTokenAccount));
     keys.push(w(accounts.treasuryTokenAccount));
+    keys.push(w(accounts.creatorTokenAccount));
     keys.push(w(accounts.tokenVault));
     keys.push(ro(accounts.vaultAuthority));
     keys.push(ro(accounts.tokenMint));

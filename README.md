@@ -187,7 +187,29 @@ const ix = placeBet(
 The `PrecogMarketsClient` wraps everything with automatic PDA derivation and transaction sending:
 
 ```js
+// Default settings (computeUnitMargin: 1.1, priorityLevel: "Medium")
 const client = new PrecogMarketsClient(connection);
+
+// Custom settings
+const client = new PrecogMarketsClient(connection, {
+  programId: customProgramId,     // optional, defaults to PROGRAM_ID
+  computeUnitMargin: 1.2,         // 20% headroom on CU estimates
+  priorityLevel: "High",          // Helius priority fee level
+});
+
+// Backward compatible — passing a PublicKey still works
+const client = new PrecogMarketsClient(connection, customProgramId);
+```
+
+Per-call overrides are also supported:
+
+```js
+// Override priority level for a single call
+await client.estimatePriorityFee(instructions, feePayer, { priorityLevel: "VeryHigh" });
+
+// Override CU margin for a single call
+await client.estimateComputeUnits(instructions, feePayer, { computeUnitMargin: 1.3 });
+```
 
 // Transactional (sign + send)
 await client.createSolMarket({ ... });
@@ -316,6 +338,78 @@ Every on-chain account begins with an 8-byte magic header used for type identifi
 | MultisigProposal | `50 52 4f 50 4f 53 4c 31` | `PROPOSL1` |
 
 The SDK uses these discriminators in all `getProgramAccounts` calls via `memcmp` filters for efficient RPC queries.
+
+## Compute Budget & Priority Fees
+
+The SDK can estimate both compute units and priority fees for optimal transaction landing.
+
+### Compute Unit Estimation
+
+Simulates your transaction and returns a CU limit with a 1.1× safety margin:
+
+```js
+const { estimatedUnits, instruction: cuIx } = await client.estimateComputeUnits(
+  [placeBetIx],
+  bettor.publicKey
+);
+```
+
+### Priority Fee Estimation (Helius)
+
+Fetches the recommended priority fee from Helius's `getPriorityFeeEstimate` API. Requires your connection to be pointed at a Helius RPC endpoint.
+
+```js
+const { priorityFee, instruction: feeIx } = await client.estimatePriorityFee(
+  [placeBetIx],
+  bettor.publicKey
+);
+// priorityFee is in microLamports per compute unit
+```
+
+Default priority level is `"Medium"` (50th percentile). Override with:
+```js
+await client.estimatePriorityFee(instructions, feePayer, { priorityLevel: "High" });
+```
+
+### Combined Estimation
+
+Get both compute unit limit and priority fee instructions in one call:
+
+```js
+const result = await client.estimateTransactionFees(
+  [placeBetIx],
+  bettor.publicKey
+);
+
+// result.instructions = [cuLimitIx, cuPriceIx, ...originalInstructions]
+const tx = new Transaction().add(...result.instructions);
+```
+
+This runs `estimateComputeUnits` and `estimatePriorityFee` in parallel and returns everything ready to go.
+
+### Smart Transaction Sending
+
+For the best transaction landing rate with Helius staked connections (SWQoS), use `sendSmartTransaction` — it handles CU estimation, priority fees, signing, and optimized sending in one call:
+
+```js
+const { signature, estimatedUnits, priorityFee } = await client.sendSmartTransaction(
+  [placeBetIx],
+  [bettor]   // first signer = fee payer
+);
+```
+
+Under the hood this:
+1. Estimates compute units (simulation × 1.1)
+2. Fetches priority fee from Helius ("Medium" by default)
+3. Prepends `setComputeUnitLimit` + `setComputeUnitPrice` instructions
+4. Signs and sends with `skipPreflight: true, maxRetries: 0`
+
+You can also use `sendRawTransaction` directly for pre-built transactions:
+
+```js
+const sig = await client.sendRawTransaction(signedTx);
+// Defaults: skipPreflight: true, maxRetries: 0
+```
 
 ## Error Handling
 

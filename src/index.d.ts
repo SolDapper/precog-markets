@@ -464,10 +464,22 @@ export declare function harvestWithheldTokens(
 // High-level Client
 // ═══════════════════════════════════════════════════════════════════════
 
+export interface PrecogMarketsClientOptions {
+  programId?: PublicKey;
+  /** Multiplier for simulated CU (default: 1.1) */
+  computeUnitMargin?: number;
+  /** Helius priority level (default: "Medium") */
+  priorityLevel?: "Min" | "Low" | "Medium" | "High" | "VeryHigh";
+}
+
 export declare class PrecogMarketsClient {
   readonly connection: Connection;
   readonly programId: PublicKey;
+  readonly computeUnitMargin: number;
+  readonly priorityLevel: string;
 
+  constructor(connection: Connection, opts?: PrecogMarketsClientOptions);
+  /** @deprecated Use options object instead */
   constructor(connection: Connection, programId?: PublicKey);
 
   // Transaction sending
@@ -692,4 +704,70 @@ export declare class PrecogMarketsClient {
     outcomePools: bigint[],
     totalPool: bigint
   ): number[];
+
+  /**
+   * Simulate a transaction to estimate compute unit usage, then return
+   * a compute budget with a 1.1× safety margin.
+   */
+  estimateComputeUnits(
+    instructions: TransactionInstruction[],
+    feePayer: PublicKey,
+    opts?: ConfirmOptions & { computeUnitMargin?: number }
+  ): Promise<{
+    estimatedUnits: number;
+    instruction: TransactionInstruction;
+  }>;
+
+  /**
+   * Estimate the priority fee using Helius's getPriorityFeeEstimate RPC method.
+   * Requires connection to a Helius RPC endpoint.
+   */
+  estimatePriorityFee(
+    instructions: TransactionInstruction[],
+    feePayer: PublicKey,
+    opts?: { priorityLevel?: "Min" | "Low" | "Medium" | "High" | "VeryHigh"; commitment?: string }
+  ): Promise<{
+    priorityFee: number;
+    instruction: TransactionInstruction;
+  }>;
+
+  /**
+   * Estimate both compute units and priority fee, returning all instructions
+   * ready to prepend to a transaction. Convenience wrapper around
+   * estimateComputeUnits + estimatePriorityFee.
+   */
+  estimateTransactionFees(
+    instructions: TransactionInstruction[],
+    feePayer: PublicKey,
+    opts?: { priorityLevel?: "Min" | "Low" | "Medium" | "High" | "VeryHigh"; commitment?: string }
+  ): Promise<{
+    estimatedUnits: number;
+    priorityFee: number;
+    computeUnitInstruction: TransactionInstruction;
+    priorityFeeInstruction: TransactionInstruction;
+    instructions: TransactionInstruction[];
+  }>;
+
+  /**
+   * Send a signed transaction with SWQoS-optimized settings.
+   * skipPreflight: true, maxRetries: 0 by default.
+   */
+  sendRawTransaction(
+    transaction: Transaction,
+    opts?: { maxRetries?: number; skipPreflight?: boolean; preflightCommitment?: string }
+  ): Promise<string>;
+
+  /**
+   * All-in-one: estimate CU + priority fee, build, sign, and send
+   * with SWQoS-optimized settings.
+   */
+  sendSmartTransaction(
+    instructions: TransactionInstruction[],
+    signers: Signer[],
+    opts?: { priorityLevel?: "Min" | "Low" | "Medium" | "High" | "VeryHigh"; commitment?: string }
+  ): Promise<{
+    signature: string;
+    estimatedUnits: number;
+    priorityFee: number;
+  }>;
 }

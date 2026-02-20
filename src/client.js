@@ -9,6 +9,7 @@ import {
   PublicKey,
   Transaction,
   sendAndConfirmTransaction,
+  ComputeBudgetProgram,
 } from "@solana/web3.js";
 
 import { PROGRAM_ID, TokenDenomination, SYSTEM_PROGRAM_ID, ACCOUNT_DISCRIMINATORS } from "./constants.js";
@@ -57,11 +58,26 @@ function bs58Encode(buf) {
 export class PrecogMarketsClient {
   /**
    * @param {Connection} connection
-   * @param {PublicKey} [programId]
+   * @param {PublicKey | {
+   *   programId?: PublicKey,
+   *   computeUnitMargin?: number,
+   *   priorityLevel?: string,
+   * }} [optsOrProgramId] - Options object, or a PublicKey for backward compat
    */
-  constructor(connection, programId = PROGRAM_ID) {
+  constructor(connection, optsOrProgramId) {
     /** @type {Connection} */ this.connection = connection;
-    /** @type {PublicKey} */ this.programId = programId;
+
+    // Backward compat: second arg can be a PublicKey or an options object
+    if (optsOrProgramId instanceof PublicKey) {
+      /** @type {PublicKey} */ this.programId = optsOrProgramId;
+      /** @type {number} */ this.computeUnitMargin = 1.1;
+      /** @type {string} */ this.priorityLevel = "Medium";
+    } else {
+      const opts = optsOrProgramId ?? {};
+      this.programId = opts.programId ?? PROGRAM_ID;
+      this.computeUnitMargin = opts.computeUnitMargin ?? 1.1;
+      this.priorityLevel = opts.priorityLevel ?? "Medium";
+    }
   }
 
   // ── helpers ────────────────────────────────────────────────────────
@@ -856,5 +872,171 @@ export class PrecogMarketsClient {
     return outcomePools.map(
       (pool) => Number((pool * 10000n) / totalPool) / 10000
     );
+  }
+
+  /**
+   * Simulate a transaction to estimate compute unit usage, then return
+   * a compute budget with a 1.1× safety margin.
+   *
+   * @param {import("@solana/web3.js").TransactionInstruction[]} instructions - The instructions to simulate
+   * @param {PublicKey} feePayer - The fee payer for the transaction
+   * @param {import("@solana/web3.js").ConfirmOptions} [opts]
+   * @returns {Promise<{ estimatedUnits: number, instruction: import("@solana/web3.js").TransactionInstruction }>}
+   *   estimatedUnits — the CU limit (simulated × 1.1, rounded up)
+   *   instruction — a `ComputeBudgetProgram.setComputeUnitLimit` instruction ready to prepend
+   */
+  async estimateComputeUnits(instructions, feePayer, opts) {
+    const tx = new Transaction().add(...instructions);
+    tx.recentBlockhash = (await this.connection.getLatestBlockhash(opts?.commitment)).blockhash;
+    tx.feePayer = feePayer;
+
+    const sim = await this.connection.simulateTransaction(tx);
+
+    if (sim.value.err) {
+      throw new Error(
+        `Simulation failed: ${JSON.stringify(sim.value.err)}${sim.value.logs ? '\n' + sim.value.logs.join('\n') : ''}`
+      );
+    }
+
+    const consumed = sim.value.unitsConsumed ?? 200_000;
+    const margin = opts?.computeUnitMargin ?? this.computeUnitMargin;
+    const estimatedUnits = Math.ceil(consumed * margin);
+
+    return {
+      estimatedUnits,
+      instruction: ComputeBudgetProgram.setComputeUnitLimit({ units: estimatedUnits }),
+    };
+  }
+
+  /**
+   * Estimate the priority fee for a transaction using Helius's
+   * getPriorityFeeEstimate RPC method.
+   *
+   * Requires the connection to be pointed at a Helius RPC endpoint.
+   * Returns a `ComputeBudgetProgram.setComputeUnitPrice` instruction
+   * set to the "Medium" priority level (50th percentile).
+   *
+   * @param {import("@solana/web3.js").TransactionInstruction[]} instructions - The instructions to estimate fees for
+   * @param {PublicKey} feePayer - The fee payer for the transaction
+   * @param {{ priorityLevel?: string, commitment?: string }} [opts]
+   *   priorityLevel — one of "Min", "Low", "Medium", "High", "VeryHigh" (default: "Medium")
+   * @returns {Promise<{ priorityFee: number, instruction: import("@solana/web3.js").TransactionInstruction }>}
+   *   priorityFee — the estimated fee in microLamports per compute unit
+   *   instruction — a `ComputeBudgetProgram.setComputeUnitPrice` instruction ready to prepend
+   */
+  async estimatePriorityFee(instructions, feePayer, opts) {
+    const priorityLevel = opts?.priorityLevel ?? this.priorityLevel;
+
+    // Build and serialize the transaction for the Helius API
+    const tx = new Transaction().add(...instructions);
+    tx.recentBlockhash = (await this.connection.getLatestBlockhash(opts?.commitment)).blockhash;
+    tx.feePayer = feePayer;
+    const serialized = bs58Encode(tx.serialize({ verifySignatures: false }));
+
+    const response = await fetch(this.connection.rpcEndpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "precog-priority-fee",
+        method: "getPriorityFeeEstimate",
+        params: [{
+          transaction: serialized,
+          options: { priorityLevel },
+        }],
+      }),
+    });
+
+    const result = await response.json();
+
+    if (result.error) {
+      throw new Error(`Priority fee estimation failed: ${JSON.stringify(result.error)}`);
+    }
+
+    const priorityFee = Math.ceil(result.result.priorityFeeEstimate ?? 0);
+
+    return {
+      priorityFee,
+      instruction: ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityFee }),
+    };
+  }
+
+  /**
+   * Estimate both compute units and priority fee, returning both instructions
+   * ready to prepend to a transaction.
+   *
+   * Convenience method that combines estimateComputeUnits + estimatePriorityFee.
+   *
+   * @param {import("@solana/web3.js").TransactionInstruction[]} instructions
+   * @param {PublicKey} feePayer
+   * @param {{ priorityLevel?: string, commitment?: string }} [opts]
+   * @returns {Promise<{
+   *   estimatedUnits: number,
+   *   priorityFee: number,
+   *   computeUnitInstruction: import("@solana/web3.js").TransactionInstruction,
+   *   priorityFeeInstruction: import("@solana/web3.js").TransactionInstruction,
+   *   instructions: import("@solana/web3.js").TransactionInstruction[],
+   * }>}
+   *   instructions — array of [cuLimitIx, cuPriceIx, ...originalInstructions] ready for a Transaction
+   */
+  async estimateTransactionFees(instructions, feePayer, opts) {
+    const [cuResult, feeResult] = await Promise.all([
+      this.estimateComputeUnits(instructions, feePayer, opts),
+      this.estimatePriorityFee(instructions, feePayer, opts),
+    ]);
+
+    return {
+      estimatedUnits: cuResult.estimatedUnits,
+      priorityFee: feeResult.priorityFee,
+      computeUnitInstruction: cuResult.instruction,
+      priorityFeeInstruction: feeResult.instruction,
+      instructions: [cuResult.instruction, feeResult.instruction, ...instructions],
+    };
+  }
+
+  /**
+   * Send a signed transaction with SWQoS-optimized settings.
+   * Uses skipPreflight: true (simulation already done) and maxRetries: 0
+   * (caller handles retries) for best results with Helius staked connections.
+   *
+   * @param {import("@solana/web3.js").Transaction} transaction - A fully signed transaction
+   * @param {{ maxRetries?: number, skipPreflight?: boolean, preflightCommitment?: string }} [opts]
+   * @returns {Promise<string>} transaction signature
+   */
+  async sendRawTransaction(transaction, opts) {
+    const rawTx = transaction.serialize();
+    return this.connection.sendRawTransaction(rawTx, {
+      skipPreflight: opts?.skipPreflight ?? true,
+      maxRetries: opts?.maxRetries ?? 0,
+      preflightCommitment: opts?.preflightCommitment ?? "confirmed",
+    });
+  }
+
+  /**
+   * All-in-one: estimate CU + priority fee, build transaction, sign, and send
+   * with SWQoS-optimized settings.
+   *
+   * @param {import("@solana/web3.js").TransactionInstruction[]} instructions
+   * @param {import("@solana/web3.js").Signer[]} signers - First signer is the fee payer
+   * @param {{ priorityLevel?: string, commitment?: string }} [opts]
+   * @returns {Promise<{ signature: string, estimatedUnits: number, priorityFee: number }>}
+   */
+  async sendSmartTransaction(instructions, signers, opts) {
+    const feePayer = signers[0].publicKey;
+
+    // Estimate CU and priority fee in parallel
+    const { estimatedUnits, priorityFee, instructions: fullIxs } =
+      await this.estimateTransactionFees(instructions, feePayer, opts);
+
+    // Build and sign
+    const tx = new Transaction().add(...fullIxs);
+    tx.recentBlockhash = (await this.connection.getLatestBlockhash(opts?.commitment ?? "confirmed")).blockhash;
+    tx.feePayer = feePayer;
+    tx.sign(...signers);
+
+    // Send with SWQoS settings
+    const signature = await this.sendRawTransaction(tx, opts);
+
+    return { signature, estimatedUnits, priorityFee };
   }
 }

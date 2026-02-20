@@ -109,35 +109,71 @@ export function decodeMarket(data) {
   const transferFeeBps = r.readU16();
   const maxTransferFee = r.readU64();
 
-  // Creator fee split fields (v0.2.0)
-  const creator = r.readPubkey();
-  const creatorFeeBps = r.readU16();
+  // ── v0.2.0 layout detection ──────────────────────────────────────
+  // New layout: creator(32) + creatorFeeBps(2) + title[128] + titleLen(2) ...
+  // Old layout: title[128] + titleLen(2) ...
+  // We try new layout first. If titleLen == 0 but the old-layout position
+  // has a non-zero titleLen, we fall back to old layout.
+  const preCreatorOffset = r.offset;
 
-  // title: [u8; 128]
-  const titleBytes = r.readFixedBytes(MAX_TITLE_LEN);
-  const titleLen = r.readU16();
-  const title = decodeFixedString(titleBytes, titleLen);
+  // Speculatively read creator fields
+  const creatorBytes = r.readFixedBytes(32);
+  const creatorFeeBpsVal = r.readU16();
 
-  // description: [u8; 512]
-  const descBytes = r.readFixedBytes(MAX_DESCRIPTION_LEN);
-  const descLen = r.readU16();
-  const description = decodeFixedString(descBytes, descLen);
+  // Read title at new-layout position
+  const titleBytesNew = r.readFixedBytes(MAX_TITLE_LEN);
+  const titleLenNew = r.readU16();
 
-  // outcomeLabels: [[u8; 64]; 10]
-  const rawLabels = [];
-  for (let i = 0; i < MAX_OUTCOMES; i++) {
-    rawLabels.push(r.readFixedBytes(MAX_OUTCOME_LABEL_LEN));
+  // Check if old layout would give us a valid title instead
+  // Old layout: title starts at preCreatorOffset
+  const oldTitleLenOffset = preCreatorOffset + MAX_TITLE_LEN;
+  let useNewLayout = true;
+  if (titleLenNew === 0 && oldTitleLenOffset + 2 <= data.length) {
+    const buf = Buffer.from(data);
+    const oldTitleLen = buf.readUInt16LE(oldTitleLenOffset);
+    if (oldTitleLen > 0 && oldTitleLen <= MAX_TITLE_LEN) {
+      useNewLayout = false;
+    }
   }
-  // outcomeLabelLens: [u16; 10]
-  const labelLens = [];
-  for (let i = 0; i < MAX_OUTCOMES; i++) labelLens.push(r.readU16());
 
-  const outcomeLabels = [];
-  for (let i = 0; i < numOutcomes; i++) {
-    outcomeLabels.push(decodeFixedString(rawLabels[i], labelLens[i]));
+  let creator, creatorFeeBps, title, description, outcomeLabels;
+
+  if (useNewLayout) {
+    creator = new PublicKey(creatorBytes);
+    creatorFeeBps = creatorFeeBpsVal;
+    title = decodeFixedString(titleBytesNew, titleLenNew);
+
+    const descBytes = r.readFixedBytes(MAX_DESCRIPTION_LEN);
+    const descLen = r.readU16();
+    description = decodeFixedString(descBytes, descLen);
+
+    const rawLabels = [];
+    for (let i = 0; i < MAX_OUTCOMES; i++) rawLabels.push(r.readFixedBytes(MAX_OUTCOME_LABEL_LEN));
+    const labelLens = [];
+    for (let i = 0; i < MAX_OUTCOMES; i++) labelLens.push(r.readU16());
+    outcomeLabels = [];
+    for (let i = 0; i < numOutcomes; i++) outcomeLabels.push(decodeFixedString(rawLabels[i], labelLens[i]));
+  } else {
+    // Old layout — rewind to preCreatorOffset and read without creator fields
+    r.offset = preCreatorOffset;
+    creator = new PublicKey(Buffer.alloc(32));
+    creatorFeeBps = 0;
+
+    const titleBytes = r.readFixedBytes(MAX_TITLE_LEN);
+    const titleLen = r.readU16();
+    title = decodeFixedString(titleBytes, titleLen);
+
+    const descBytes = r.readFixedBytes(MAX_DESCRIPTION_LEN);
+    const descLen = r.readU16();
+    description = decodeFixedString(descBytes, descLen);
+
+    const rawLabels = [];
+    for (let i = 0; i < MAX_OUTCOMES; i++) rawLabels.push(r.readFixedBytes(MAX_OUTCOME_LABEL_LEN));
+    const labelLens = [];
+    for (let i = 0; i < MAX_OUTCOMES; i++) labelLens.push(r.readU16());
+    outcomeLabels = [];
+    for (let i = 0; i < numOutcomes; i++) outcomeLabels.push(decodeFixedString(rawLabels[i], labelLens[i]));
   }
-
-  // skip reserved[175]
 
   return {
     discriminator,

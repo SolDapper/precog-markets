@@ -180,7 +180,7 @@ export function createMarket(accounts, args, programId = PROGRAM_ID) {
   const keys = [
     w(accounts.market),
     w(accounts.vault),
-    ro(accounts.authority),
+    rs(accounts.authority),
     ws(accounts.payer),
     w(accounts.protocolConfig),
     ro(SYSTEM_PROGRAM_ID),

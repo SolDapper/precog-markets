@@ -451,9 +451,10 @@ export class PrecogMarketsClient {
       params.bettor.publicKey,
       params.outcomeIndex
     );
+    const [protocolConfig] = this.findProtocolConfig();
 
     const instruction = ix.placeBet(
-      { market: params.market, vault, position, bettor: params.bettor.publicKey },
+      { market: params.market, vault, position, bettor: params.bettor.publicKey, protocolConfig },
       { outcomeIndex: params.outcomeIndex, amount: params.amount },
       this.programId
     );
@@ -486,7 +487,7 @@ export class PrecogMarketsClient {
       params.bettor.publicKey,
       params.outcomeIndex
     );
-    const [vaultAuthority] = await this.findVaultAuthority(params.market);
+    const [protocolConfig] = this.findProtocolConfig();
 
     const instruction = ix.placeBet(
       {
@@ -494,11 +495,11 @@ export class PrecogMarketsClient {
         vault,
         position,
         bettor: params.bettor.publicKey,
+        protocolConfig,
         bettorTokenAccount: params.bettorTokenAccount,
         tokenVault: params.tokenVault,
         tokenMint: params.tokenMint,
         tokenProgram: params.tokenProgram,
-        vaultAuthority,
       },
       { outcomeIndex: params.outcomeIndex, amount: params.amount },
       this.programId

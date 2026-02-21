@@ -208,11 +208,11 @@ export function createMarket(accounts, args, programId = PROGRAM_ID) {
  * @property {PublicKey} vault
  * @property {PublicKey} position
  * @property {PublicKey} bettor
- * @property {PublicKey} [bettorTokenAccount]
- * @property {PublicKey} [tokenVault]
- * @property {PublicKey} [tokenMint]
- * @property {PublicKey} [tokenProgram]
- * @property {PublicKey} [vaultAuthority]
+ * @property {PublicKey} protocolConfig - Checked for paused flag; PDA [PROTOCOL_CONFIG_SEED]
+ * @property {PublicKey} [bettorTokenAccount] - SPL/Token-2022 only
+ * @property {PublicKey} [tokenVault]         - SPL/Token-2022 only
+ * @property {PublicKey} [tokenMint]          - SPL/Token-2022 only
+ * @property {PublicKey} [tokenProgram]       - SPL/Token-2022 only
  */
 
 /**
@@ -232,6 +232,7 @@ export function placeBet(accounts, args, programId = PROGRAM_ID) {
     w(accounts.vault),
     w(accounts.position),
     ws(accounts.bettor),
+    ro(accounts.protocolConfig),
     ro(SYSTEM_PROGRAM_ID),
   ];
 
@@ -240,7 +241,6 @@ export function placeBet(accounts, args, programId = PROGRAM_ID) {
     keys.push(w(accounts.tokenVault));
     keys.push(ro(accounts.tokenMint));
     keys.push(ro(accounts.tokenProgram));
-    keys.push(ro(accounts.vaultAuthority));
   }
 
   return new TransactionInstruction({ programId, keys, data: wr.toBuffer() });

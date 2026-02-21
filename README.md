@@ -159,10 +159,11 @@ Each builder returns a `TransactionInstruction`. Pass your own accounts — the 
 > **Note:** Instruction data uses a single `u8` byte discriminator (NOT a 4-byte or 8-byte Anchor discriminator).
 
 ```js
-import { placeBet } from "precog-markets";
+import { placeBet, findProtocolConfigAddress } from "precog-markets";
 
+const [protocolConfig] = findProtocolConfigAddress();
 const ix = placeBet(
-  { market, vault, position, bettor: bettor.publicKey },
+  { market, vault, position, bettor: bettor.publicKey, protocolConfig },
   { outcomeIndex: 0, amount: 1_000_000_000n }
 );
 ```

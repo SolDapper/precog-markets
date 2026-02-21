@@ -327,11 +327,16 @@ export interface PlaceBetAccounts {
   vault: PublicKey;
   position: PublicKey;
   bettor: PublicKey;
+  /** Checked for paused flag; PDA [PROTOCOL_CONFIG_SEED] */
+  protocolConfig: PublicKey;
+  /** SPL/Token-2022 only */
   bettorTokenAccount?: PublicKey;
+  /** SPL/Token-2022 only */
   tokenVault?: PublicKey;
+  /** SPL/Token-2022 only */
   tokenMint?: PublicKey;
+  /** SPL/Token-2022 only */
   tokenProgram?: PublicKey;
-  vaultAuthority?: PublicKey;
 }
 
 export declare function placeBet(

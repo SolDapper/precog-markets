@@ -16,6 +16,8 @@ A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana
 - **ESM-only** (`"type": "module"`)
 - **Peer dependency** on `@solana/web3.js ^1.87` — no other runtime deps
 
+> **⚠️ Multisig governance is untested.** The multisig instructions (`createMultisig`, `createProposal`, `approveProposal`, `executeProposal`) and their associated account decoders are included in the SDK but have **not been tested** against the on-chain program. The code is derived from the Rust program source and is believed to be structurally correct, but may contain bugs in serialization, account ordering, or argument encoding. Do not use in production without thorough testing. Contributions and test reports are welcome.
+
 ## Installation
 
 ```bash
@@ -124,13 +126,13 @@ const accountInfo = await connection.getAccountInfo(marketAddress);
 const market = decodeMarket(accountInfo.data);
 ```
 
-| Decoder | Returns |
-|---------|---------|
-| `decodeMarket(data)` | `MarketAccount` |
-| `decodeUserPosition(data)` | `UserPositionAccount` |
-| `decodeProtocolConfig(data)` | `ProtocolConfigAccount` |
-| `decodeMultisigAuthority(data)` | `MultisigAuthorityAccount` |
-| `decodeMultisigProposal(data)` | `MultisigProposalAccount` |
+| Decoder | Returns | Status |
+|---------|---------|--------|
+| `decodeMarket(data)` | `MarketAccount` | Tested |
+| `decodeUserPosition(data)` | `UserPositionAccount` | Tested |
+| `decodeProtocolConfig(data)` | `ProtocolConfigAccount` | Tested |
+| `decodeMultisigAuthority(data)` | `MultisigAuthorityAccount` | ⚠️ Untested |
+| `decodeMultisigProposal(data)` | `MultisigProposalAccount` | ⚠️ Untested |
 
 #### Market Account Fields
 
@@ -168,22 +170,22 @@ const ix = placeBet(
 );
 ```
 
-| Builder | Instruction |
-|---------|-------------|
-| `initializeProtocol(accounts, args)` | One-time protocol setup |
-| `createMarket(accounts, args)` | Create a prediction market |
-| `placeBet(accounts, args)` | Deposit SOL/tokens on an outcome |
-| `resolveMarket(accounts, args)` | Single-sig resolve |
-| `finalizeMarket(accounts)` | Permissionless crank after dispute window |
-| `claimWinnings(accounts)` | Claim payout (fees split to treasury + creator) |
-| `voidMarket(accounts)` | Void a market |
-| `claimRefund(accounts)` | Refund on voided markets |
-| `updateProtocolConfig(accounts, args)` | Admin config update |
-| `createMultisig(accounts, args)` | Create M-of-N multisig |
-| `createProposal(accounts, args)` | Propose multisig action |
-| `approveProposal(accounts)` | Approve a proposal |
-| `executeProposal(accounts)` | Execute approved proposal |
-| `harvestWithheldTokens(accounts)` | Harvest Token-2022 transfer fees |
+| Builder | Instruction | Status |
+|---------|-------------|--------|
+| `initializeProtocol(accounts, args)` | One-time protocol setup | Tested |
+| `createMarket(accounts, args)` | Create a prediction market | Tested |
+| `placeBet(accounts, args)` | Deposit SOL/tokens on an outcome | Tested |
+| `resolveMarket(accounts, args)` | Single-sig resolve | Tested |
+| `finalizeMarket(accounts)` | Permissionless crank after dispute window | Tested |
+| `claimWinnings(accounts)` | Claim payout (fees split to treasury + creator) | Tested |
+| `voidMarket(accounts)` | Void a market | Tested |
+| `claimRefund(accounts)` | Refund on voided markets | Tested |
+| `updateProtocolConfig(accounts, args)` | Admin config update | Tested |
+| `harvestWithheldTokens(accounts)` | Harvest Token-2022 transfer fees | Tested |
+| `createMultisig(accounts, args)` | Create M-of-N multisig | ⚠️ Untested |
+| `createProposal(accounts, args)` | Propose multisig action | ⚠️ Untested |
+| `approveProposal(accounts)` | Approve a proposal | ⚠️ Untested |
+| `executeProposal(accounts)` | Execute approved proposal | ⚠️ Untested |
 
 ### High-Level Client (`precog-markets/client`)
 
@@ -264,7 +266,9 @@ await client.placeTokenBet({
 });
 ```
 
-## Multi-Sig Governance
+## Multi-Sig Governance (⚠️ Untested)
+
+> **⚠️ This entire section covers untested functionality.** The multisig governance instructions, PDA helpers, account decoders, and high-level client methods are included in the SDK but have not been integration-tested against the deployed on-chain program. The code is derived from the Rust program source and is believed to be structurally correct, but may contain bugs in serialization, account ordering, or argument encoding. **Do not use in production without thorough testing.**
 
 Markets can be governed by an on-chain M-of-N multisig:
 

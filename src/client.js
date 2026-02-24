@@ -808,8 +808,10 @@ export class PrecogMarketsClient {
    * @param {import("@solana/web3.js").ConfirmOptions} [opts]
    */
   async executeProposal(payer, proposal, multisig, market, opts) {
+    const [protocolConfig] = await this.findProtocolConfig();
+
     const instruction = ix.executeProposal(
-      { proposal, multisig, market },
+      { proposal, multisig, market, protocolConfig },
       this.programId
     );
     const signature = await this.sendTransaction([instruction], [payer], opts);

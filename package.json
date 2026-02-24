@@ -1,6 +1,6 @@
 {
   "name": "precog-markets",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "JavaScript SDK for Precog Markets — a Solana prediction market program — pari-mutuel markets with SOL, SPL Token, and Token-2022 support",
   "type": "module",
   "main": "./src/index.js",

@@ -536,7 +536,7 @@ export function approveProposal(accounts, programId = PROGRAM_ID) {
 
 /**
  * Permissionless once threshold is met.
- * @param {{ proposal: PublicKey, multisig: PublicKey, market: PublicKey }} accounts
+ * @param {{ proposal: PublicKey, multisig: PublicKey, market: PublicKey, protocolConfig: PublicKey }} accounts
  * @param {PublicKey} [programId]
  * @returns {TransactionInstruction}
  */
@@ -547,6 +547,7 @@ export function executeProposal(accounts, programId = PROGRAM_ID) {
       w(accounts.proposal),
       w(accounts.multisig),
       w(accounts.market),
+      ro(accounts.protocolConfig),
     ],
     data: Buffer.from(DISCRIMINATORS.EXECUTE_PROPOSAL),
   });

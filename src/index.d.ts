@@ -455,7 +455,7 @@ export declare function approveProposal(
 ): TransactionInstruction;
 
 export declare function executeProposal(
-  accounts: { proposal: PublicKey; multisig: PublicKey; market: PublicKey },
+  accounts: { proposal: PublicKey; multisig: PublicKey; market: PublicKey; protocolConfig: PublicKey },
   programId?: PublicKey
 ): TransactionInstruction;
 

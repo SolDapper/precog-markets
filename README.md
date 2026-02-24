@@ -214,6 +214,7 @@ await client.estimatePriorityFee(instructions, feePayer, { priorityLevel: "VeryH
 await client.estimateComputeUnits(instructions, feePayer, { computeUnitMargin: 1.3 });
 ```
 
+```js
 // Transactional (sign + send)
 await client.createSolMarket({ ... });
 await client.placeSolBet({ ... });
@@ -416,7 +417,7 @@ const sig = await client.sendRawTransaction(signedTx);
 
 ## Error Handling
 
-The SDK exports all 56 program error codes:
+The SDK exports all 63 program error codes:
 
 ```js
 import { ErrorCode, ErrorName } from "precog-markets";

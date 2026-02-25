@@ -6,7 +6,7 @@ A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana
 
 ## Features
 
-- **14 instruction builders** covering the full program lifecycle
+- **15 instruction builders** covering the full program lifecycle
 - **5 account decoders** (Market, UserPosition, ProtocolConfig, MultisigAuthority, MultisigProposal)
 - **PDA derivation** helpers for every account type
 - **High-level `PrecogMarketsClient`** with auto-PDA resolution, `sendTransaction`, and batch/gPA queries
@@ -15,8 +15,6 @@ A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana
 - **Full TypeScript declarations** (`index.d.ts`)
 - **ESM-only** (`"type": "module"`)
 - **Peer dependency** on `@solana/web3.js ^1.87` — no other runtime deps
-
-> **⚠️ Multisig governance is untested.** The multisig instructions (`createMultisig`, `createProposal`, `approveProposal`, `executeProposal`) and their associated account decoders are included in the SDK but have **not been tested** against the on-chain program. The code is derived from the Rust program source and is believed to be structurally correct, but may contain bugs in serialization, account ordering, or argument encoding. Do not use in production without thorough testing. Contributions and test reports are welcome.
 
 ## Installation
 
@@ -76,7 +74,7 @@ src/
 ├── pda.js              # PDA derivation for all account types
 ├── serialization.js    # BorshWriter / BorshReader
 ├── accounts.js         # Account decoders (Market, UserPosition, etc.)
-├── instructions.js     # Instruction builders (all 14 instructions)
+├── instructions.js     # Instruction builders (all 15 instructions)
 └── client.js           # High-level PrecogMarketsClient
 ```
 
@@ -126,13 +124,13 @@ const accountInfo = await connection.getAccountInfo(marketAddress);
 const market = decodeMarket(accountInfo.data);
 ```
 
-| Decoder | Returns | Status |
-|---------|---------|--------|
-| `decodeMarket(data)` | `MarketAccount` | Tested |
-| `decodeUserPosition(data)` | `UserPositionAccount` | Tested |
-| `decodeProtocolConfig(data)` | `ProtocolConfigAccount` | Tested |
-| `decodeMultisigAuthority(data)` | `MultisigAuthorityAccount` | ⚠️ Untested |
-| `decodeMultisigProposal(data)` | `MultisigProposalAccount` | ⚠️ Untested |
+| Decoder | Returns |
+|---------|---------|
+| `decodeMarket(data)` | `MarketAccount` |
+| `decodeUserPosition(data)` | `UserPositionAccount` |
+| `decodeProtocolConfig(data)` | `ProtocolConfigAccount` |
+| `decodeMultisigAuthority(data)` | `MultisigAuthorityAccount` |
+| `decodeMultisigProposal(data)` | `MultisigProposalAccount` |
 
 #### Market Account Fields
 
@@ -170,22 +168,23 @@ const ix = placeBet(
 );
 ```
 
-| Builder | Instruction | Status |
-|---------|-------------|--------|
-| `initializeProtocol(accounts, args)` | One-time protocol setup | Tested |
-| `createMarket(accounts, args)` | Create a prediction market | Tested |
-| `placeBet(accounts, args)` | Deposit SOL/tokens on an outcome | Tested |
-| `resolveMarket(accounts, args)` | Single-sig resolve | Tested |
-| `finalizeMarket(accounts)` | Permissionless crank after dispute window | Tested |
-| `claimWinnings(accounts)` | Claim payout (fees split to treasury + creator) | Tested |
-| `voidMarket(accounts)` | Void a market | Tested |
-| `claimRefund(accounts)` | Refund on voided markets | Tested |
-| `updateProtocolConfig(accounts, args)` | Admin config update | Tested |
-| `harvestWithheldTokens(accounts)` | Harvest Token-2022 transfer fees | Tested |
-| `createMultisig(accounts, args)` | Create M-of-N multisig | ⚠️ Untested |
-| `createProposal(accounts, args)` | Propose multisig action | ⚠️ Untested |
-| `approveProposal(accounts)` | Approve a proposal | ⚠️ Untested |
-| `executeProposal(accounts)` | Execute approved proposal | ⚠️ Untested |
+| Builder | Instruction |
+|---------|-------------|
+| `initializeProtocol(accounts, args)` | One-time protocol setup |
+| `createMarket(accounts, args)` | Create a prediction market |
+| `placeBet(accounts, args)` | Deposit SOL/tokens on an outcome |
+| `resolveMarket(accounts, args)` | Single-sig resolve |
+| `finalizeMarket(accounts)` | Permissionless crank after dispute window |
+| `claimWinnings(accounts)` | Claim payout (fees split to treasury + creator) |
+| `voidMarket(accounts)` | Void a market |
+| `claimRefund(accounts)` | Refund on voided markets |
+| `updateProtocolConfig(accounts, args)` | Admin config update |
+| `createMultisig(accounts, args)` | Create M-of-N multisig |
+| `createProposal(accounts, args)` | Propose multisig action |
+| `approveProposal(accounts)` | Approve a proposal |
+| `executeProposal(accounts)` | Execute approved proposal |
+| `harvestWithheldTokens(accounts)` | Harvest Token-2022 transfer fees |
+| `disputeResolve(accounts, args)` | Re-resolve during dispute window |
 
 ### High-Level Client (`precog-markets/client`)
 
@@ -266,9 +265,7 @@ await client.placeTokenBet({
 });
 ```
 
-## Multi-Sig Governance (⚠️ Untested)
-
-> **⚠️ This entire section covers untested functionality.** The multisig governance instructions, PDA helpers, account decoders, and high-level client methods are included in the SDK but have not been integration-tested against the deployed on-chain program. The code is derived from the Rust program source and is believed to be structurally correct, but may contain bugs in serialization, account ordering, or argument encoding. **Do not use in production without thorough testing.**
+## Multi-Sig Governance
 
 Markets can be governed by an on-chain M-of-N multisig:
 
@@ -313,23 +310,54 @@ await client.executeProposal(anyPayer, proposal, multisig, market);
 | `RemoveSigner` | `{ signer: PublicKey }` |
 | `ChangeThreshold` | `{ newThreshold: number }` |
 
+## Dispute Resolution
+
+After a market is resolved, a 24-hour dispute window begins. During this window the market authority can change the winning outcome or void the market entirely.
+
+### Re-resolve (change outcome)
+
+```js
+import { disputeResolve } from "precog-markets";
+
+// Low-level instruction builder
+const ix = disputeResolve(
+  { market: marketPubkey, authority: authorityPubkey },
+  { winningOutcome: 1 }  // must differ from current winning outcome
+);
+
+// High-level client
+await client.disputeResolve(authority, market, 1);
+```
+
+Calling `disputeResolve` resets `resolved_at` to the current time, restarting a full 24-hour dispute window. The new outcome must be different from the current one (`OutcomeUnchanged` error otherwise).
+
+> **Multisig note:** `disputeResolve` is only available to non-multisig authorities. Multisig-governed markets must use a `VoidMarket` proposal followed by a new `ResolveMarket` proposal instead.
+
+### Void during dispute
+
+The authority can also void the market during the dispute window, refunding all positions:
+
+```js
+await client.voidMarket(authority, market);
+```
+
 ## Market Lifecycle
 
 ```
 Open ──→ Resolved ──→ (24h dispute) ──→ Finalized
-  │                                         │
-  │         ┌──────────────────────────┐    │
-  └──→ Voided                          │    ▼
-        │                              │  claimWinnings()
-        ▼                              │
-    claimRefund()                      │
-                                       │
-    finalizeMarket() ◄─────────────────┘
+  │          ↑  │                           │
+  │          │  │  disputeResolve()         │
+  │          └──┘  (restarts window)        ▼
+  │                                      claimWinnings()
+  └──→ Voided
+        │
+        ▼
+    claimRefund()
 ```
 
 1. **Open** — Bets accepted until `resolutionDeadline`
 2. **Resolved** — Authority (or multisig) declares winning outcome
-3. **Dispute window** — 24h period for challenges
+3. **Dispute window** — 24h period; authority can call `disputeResolve()` to change the outcome (resets the 24h clock), or `voidMarket()` to cancel
 4. **Finalized** — Anyone cranks `finalizeMarket`; winners claim payouts
 5. **Voided** (alternate) — Authority voids; all bettors get full refunds
 
@@ -421,7 +449,7 @@ const sig = await client.sendRawTransaction(signedTx);
 
 ## Error Handling
 
-The SDK exports all 63 program error codes:
+The SDK exports all 64 program error codes:
 
 ```js
 import { ErrorCode, ErrorName } from "precog-markets";

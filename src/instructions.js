@@ -536,7 +536,7 @@ export function approveProposal(accounts, programId = PROGRAM_ID) {
 
 /**
  * Permissionless once threshold is met.
- * @param {{ proposal: PublicKey, multisig: PublicKey, market: PublicKey, protocolConfig: PublicKey }} accounts
+ * @param {{ proposal: PublicKey, multisig: PublicKey, market: PublicKey }} accounts
  * @param {PublicKey} [programId]
  * @returns {TransactionInstruction}
  */
@@ -547,7 +547,6 @@ export function executeProposal(accounts, programId = PROGRAM_ID) {
       w(accounts.proposal),
       w(accounts.multisig),
       w(accounts.market),
-      ro(accounts.protocolConfig),
     ],
     data: Buffer.from(DISCRIMINATORS.EXECUTE_PROPOSAL),
   });
@@ -584,5 +583,32 @@ export function harvestWithheldTokens(accounts, programId = PROGRAM_ID) {
       ro(accounts.tokenProgram),
     ],
     data: Buffer.from(DISCRIMINATORS.HARVEST_WITHHELD_TOKENS),
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// 14 — disputeResolve
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Re-resolve a market during its active 24-hour dispute window.
+ * Only callable by the non-multisig market authority.
+ * The winning outcome must differ from the current resolution.
+ * Resets resolved_at, restarting the dispute window.
+ *
+ * @param {{ market: PublicKey, authority: PublicKey }} accounts
+ * @param {{ winningOutcome: number }} args
+ * @param {PublicKey} [programId]
+ * @returns {TransactionInstruction}
+ */
+export function disputeResolve(accounts, args, programId = PROGRAM_ID) {
+  const wr = new BorshWriter();
+  wr.writeFixedBytes(DISCRIMINATORS.DISPUTE_RESOLVE);
+  wr.writeU8(args.winningOutcome);
+
+  return new TransactionInstruction({
+    programId,
+    keys: [w(accounts.market), rs(accounts.authority)],
+    data: wr.toBuffer(),
   });
 }

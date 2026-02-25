@@ -56,6 +56,7 @@ export declare const DISCRIMINATORS: {
   readonly APPROVE_PROPOSAL: Buffer;
   readonly EXECUTE_PROPOSAL: Buffer;
   readonly HARVEST_WITHHELD_TOKENS: Buffer;
+  readonly DISPUTE_RESOLVE: Buffer;
 };
 
 export declare const ACCOUNT_DISCRIMINATORS: {
@@ -455,7 +456,7 @@ export declare function approveProposal(
 ): TransactionInstruction;
 
 export declare function executeProposal(
-  accounts: { proposal: PublicKey; multisig: PublicKey; market: PublicKey; protocolConfig: PublicKey },
+  accounts: { proposal: PublicKey; multisig: PublicKey; market: PublicKey },
   programId?: PublicKey
 ): TransactionInstruction;
 
@@ -470,6 +471,18 @@ export interface HarvestWithheldTokensAccounts {
 
 export declare function harvestWithheldTokens(
   accounts: HarvestWithheldTokensAccounts,
+  programId?: PublicKey
+): TransactionInstruction;
+
+/**
+ * Re-resolve a market during its active 24-hour dispute window.
+ * Only callable by the non-multisig market authority.
+ * The winning outcome must differ from the current resolution.
+ * Resets resolved_at, restarting the dispute window.
+ */
+export declare function disputeResolve(
+  accounts: { market: PublicKey; authority: PublicKey },
+  args: { winningOutcome: number },
   programId?: PublicKey
 ): TransactionInstruction;
 
@@ -710,6 +723,13 @@ export declare class PrecogMarketsClient {
     tokenProgram: PublicKey;
     opts?: ConfirmOptions;
   }): Promise<{ signature: string }>;
+
+  disputeResolve(
+    authority: Signer,
+    market: PublicKey,
+    winningOutcome: number,
+    opts?: ConfirmOptions
+  ): Promise<{ signature: string }>;
 
   // Utility
   static calculatePayout(

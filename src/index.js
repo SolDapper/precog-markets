@@ -84,6 +84,7 @@ export {
   approveProposal,
   executeProposal,
   harvestWithheldTokens,
+  disputeResolve,
 } from "./instructions.js";
 
 // ── High-level client ────────────────────────────────────────────────

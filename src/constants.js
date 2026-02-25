@@ -69,6 +69,7 @@ export const DISCRIMINATORS = {
   APPROVE_PROPOSAL: Buffer.from([11]),
   EXECUTE_PROPOSAL: Buffer.from([12]),
   HARVEST_WITHHELD_TOKENS: Buffer.from([13]),
+  DISPUTE_RESOLVE: Buffer.from([14]),
 };
 
 // ── Account discriminators (8-byte magic headers from IDL) ──────────
@@ -173,6 +174,7 @@ export const ErrorCode = /** @type {const} */ ({
   60: "AlreadyApprovedProposal",
   61: "SignerSetChanged",
   62: "FeeBelowProtocolMinimum",
+  63: "OutcomeUnchanged",
 });
 
 /** Map error name → code */

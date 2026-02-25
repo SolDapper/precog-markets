@@ -4,6 +4,25 @@ A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana
 
 > **No Anchor required.** This SDK uses raw `@solana/web3.js` `TransactionInstruction` objects with hand-rolled Borsh serialization.
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Architecture](#architecture)
+- [Module Structure](#module-structure)
+- [SPL Token / Token-2022 Markets](#spl-token--token-2022-markets)
+- [Dispute Resolution](#dispute-resolution)
+- [Multi-Sig Governance](#multi-sig-governance-%EF%B8%8F-untested)
+- [Market Lifecycle](#market-lifecycle)
+- [Account Discriminators](#account-discriminators)
+- [Compute Budget & Priority Fees](#compute-budget--priority-fees)
+- [Error Handling](#error-handling)
+- [Custom Program ID](#custom-program-id)
+- [Serialization Utilities](#serialization-utilities)
+- [Requirements](#requirements)
+- [License](#license)
+
 ## Features
 
 - **15 instruction builders** covering the full program lifecycle

@@ -1,6 +1,6 @@
 # precog-markets
 
-A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana **Precog Markets** program — a trustless pari-mutuel prediction market supporting native SOL, SPL Token, and Token-2022 denominations with on-chain multi-sig governance.
+A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana **Precog Markets** program - a trustless pari-mutuel prediction market supporting native SOL, SPL Token, and Token-2022 denominations with on-chain multi-sig governance.
 
 > **No Anchor required.** This SDK uses raw `@solana/web3.js` `TransactionInstruction` objects with hand-rolled Borsh serialization.
 
@@ -29,11 +29,11 @@ A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana
 - **5 account decoders** (Market, UserPosition, ProtocolConfig, MultisigAuthority, MultisigProposal)
 - **PDA derivation** helpers for every account type
 - **High-level `PrecogMarketsClient`** with auto-PDA resolution, `sendTransaction`, and batch/gPA queries
-- **Discriminator-filtered RPC queries** — all `getProgramAccounts` calls use 8-byte account discriminator `memcmp` filters for efficient fetching
+- **Discriminator-filtered RPC queries** - all `getProgramAccounts` calls use 8-byte account discriminator `memcmp` filters for efficient fetching
 - **Low-level `BorshWriter`/`BorshReader`** for custom serialization needs
 - **Full TypeScript declarations** (`index.d.ts`)
 - **ESM-only** (`"type": "module"`)
-- **Peer dependency** on `@solana/web3.js ^1.87` — no other runtime deps
+- **Peer dependency** on `@solana/web3.js ^1.87` - no other runtime deps
 
 > **⚠️ Multisig governance is untested.** The multisig instructions (`createMultisig`, `createProposal`, `approveProposal`, `executeProposal`) and their associated account decoders are included in the SDK but have **not been tested** against the on-chain program. The code is derived from the Rust program source and is believed to be structurally correct, but may contain bugs in serialization, account ordering, or argument encoding. Do not use in production without thorough testing. Contributions and test reports are welcome.
 
@@ -175,7 +175,7 @@ When creating a market, if `feeBpsOverride` is set it must be ≥ the protocol `
 
 ### Instruction Builders (`precog-markets/instructions`)
 
-Each builder returns a `TransactionInstruction`. Pass your own accounts — the SDK never does PDA resolution at this level.
+Each builder returns a `TransactionInstruction`. Pass your own accounts - the SDK never does PDA resolution at this level.
 
 > **Note:** Instruction data uses a single `u8` byte discriminator (NOT a 4-byte or 8-byte Anchor discriminator).
 
@@ -219,10 +219,10 @@ const client = new PrecogMarketsClient(connection);
 const client = new PrecogMarketsClient(connection, {
   programId: customProgramId,     // optional, defaults to PROGRAM_ID
   computeUnitMargin: 1.2,         // 20% headroom on CU estimates
-  priorityLevel: "High",          // Helius priority fee level
+  priorityLevel: "High",          // priority fee level
 });
 
-// Backward compatible — passing a PublicKey still works
+// Backward compatible - passing a PublicKey still works
 const client = new PrecogMarketsClient(connection, customProgramId);
 ```
 
@@ -378,11 +378,11 @@ Open ──→ Resolved ──→ (24h dispute) ──→ Finalized
     claimRefund()
 ```
 
-1. **Open** — Bets accepted until `resolutionDeadline`
-2. **Resolved** — Authority (or multisig) declares winning outcome
-3. **Dispute window** — 24h period; authority can call `disputeResolve()` to change the outcome (resets the 24h clock), or `voidMarket()` to cancel
-4. **Finalized** — Anyone cranks `finalizeMarket`; winners claim payouts
-5. **Voided** (alternate) — Authority voids; all bettors get full refunds
+1. **Open** - Bets accepted until `resolutionDeadline`
+2. **Resolved** - Authority (or multisig) declares winning outcome
+3. **Dispute window** - 24h period; authority can call `disputeResolve()` to change the outcome (resets the 24h clock), or `voidMarket()` to cancel
+4. **Finalized** - Anyone cranks `finalizeMarket`; winners claim payouts
+5. **Voided** (alternate) - Authority voids; all bettors get full refunds
 
 ## Account Discriminators
 
@@ -413,9 +413,9 @@ const { estimatedUnits, instruction: cuIx } = await client.estimateComputeUnits(
 );
 ```
 
-### Priority Fee Estimation (Helius)
+### Priority Fee Estimation
 
-Fetches the recommended priority fee from Helius's `getPriorityFeeEstimate` API. Requires your connection to be pointed at a Helius RPC endpoint.
+Estimates the optimal priority fee using the standard Solana RPC method `getRecentPrioritizationFees`. Works with any RPC provider (Helius, Triton, QuickNode, etc.). Extracts writable accounts from your instructions for account-aware fee estimation.
 
 ```js
 const { priorityFee, instruction: feeIx } = await client.estimatePriorityFee(
@@ -428,6 +428,20 @@ const { priorityFee, instruction: feeIx } = await client.estimatePriorityFee(
 Default priority level is `"Medium"` (50th percentile). Override with:
 ```js
 await client.estimatePriorityFee(instructions, feePayer, { priorityLevel: "High" });
+```
+
+#### Custom Fee Estimator
+
+For provider-specific APIs (e.g., Helius `getPriorityFeeEstimate`, Triton percentile API), pass a custom `feeEstimator` in the constructor. It should return microLamports per compute unit:
+
+```js
+const client = new PrecogMarketsClient(connection, {
+  feeEstimator: async (connection, instructions, feePayer, { priorityLevel }) => {
+    // Your provider-specific logic here
+    // Return a number (microLamports per CU)
+    return 50_000;
+  },
+});
 ```
 
 ### Combined Estimation
@@ -448,7 +462,7 @@ This runs `estimateComputeUnits` and `estimatePriorityFee` in parallel and retur
 
 ### Smart Transaction Sending
 
-For the best transaction landing rate with Helius staked connections (SWQoS), use `sendSmartTransaction` — it handles CU estimation, priority fees, signing, and optimized sending in one call:
+For the best transaction landing rate, use `sendSmartTransaction` - it handles CU estimation, priority fees, signing, and optimized sending in one call:
 
 ```js
 const { signature, estimatedUnits, priorityFee } = await client.sendSmartTransaction(
@@ -458,8 +472,8 @@ const { signature, estimatedUnits, priorityFee } = await client.sendSmartTransac
 ```
 
 Under the hood this:
-1. Estimates compute units (simulation × 1.1)
-2. Fetches priority fee from Helius ("Medium" by default)
+1. Estimates compute units (simulation x 1.1)
+2. Estimates priority fee from recent on-chain data ("Medium" by default)
 3. Prepends `setComputeUnitLimit` + `setComputeUnitPrice` instructions
 4. Signs and sends with `skipPreflight: true, maxRetries: 0`
 

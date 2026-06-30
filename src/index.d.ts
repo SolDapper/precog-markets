@@ -490,12 +490,21 @@ export declare function disputeResolve(
 // High-level Client
 // ═══════════════════════════════════════════════════════════════════════
 
+export type FeeEstimator = (
+  connection: Connection,
+  instructions: TransactionInstruction[],
+  feePayer: PublicKey,
+  opts: { priorityLevel: string }
+) => Promise<number>;
+
 export interface PrecogMarketsClientOptions {
   programId?: PublicKey;
   /** Multiplier for simulated CU (default: 1.1) */
   computeUnitMargin?: number;
-  /** Helius priority level (default: "Medium") */
+  /** Priority level for fee estimation (default: "Medium") */
   priorityLevel?: "Min" | "Low" | "Medium" | "High" | "VeryHigh";
+  /** Optional custom fee estimator. Receives connection, instructions, feePayer, and opts. Should return microLamports per CU. */
+  feeEstimator?: FeeEstimator;
 }
 
 export declare class PrecogMarketsClient {
@@ -503,6 +512,7 @@ export declare class PrecogMarketsClient {
   readonly programId: PublicKey;
   readonly computeUnitMargin: number;
   readonly priorityLevel: string;
+  readonly feeEstimator: FeeEstimator | null;
 
   constructor(connection: Connection, opts?: PrecogMarketsClientOptions);
   /** @deprecated Use options object instead */
@@ -758,8 +768,9 @@ export declare class PrecogMarketsClient {
   }>;
 
   /**
-   * Estimate the priority fee using Helius's getPriorityFeeEstimate RPC method.
-   * Requires connection to a Helius RPC endpoint.
+   * Estimate the priority fee using the standard Solana RPC method
+   * getRecentPrioritizationFees, or a custom feeEstimator if provided.
+   * Account-aware: extracts writable accounts from instructions.
    */
   estimatePriorityFee(
     instructions: TransactionInstruction[],
@@ -788,7 +799,7 @@ export declare class PrecogMarketsClient {
   }>;
 
   /**
-   * Send a signed transaction with SWQoS-optimized settings.
+   * Send a signed transaction with optimized settings.
    * skipPreflight: true, maxRetries: 0 by default.
    */
   sendRawTransaction(
@@ -798,7 +809,7 @@ export declare class PrecogMarketsClient {
 
   /**
    * All-in-one: estimate CU + priority fee, build, sign, and send
-   * with SWQoS-optimized settings.
+   * with optimized settings.
    */
   sendSmartTransaction(
     instructions: TransactionInstruction[],

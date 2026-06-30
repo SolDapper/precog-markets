@@ -62,6 +62,7 @@ export class PrecogMarketsClient {
    *   programId?: PublicKey,
    *   computeUnitMargin?: number,
    *   priorityLevel?: string,
+   *   feeEstimator?: (connection: Connection, instructions: TransactionInstruction[], feePayer: PublicKey, opts: { priorityLevel: string }) => Promise<number>,
    * }} [optsOrProgramId] - Options object, or a PublicKey for backward compat
    */
   constructor(connection, optsOrProgramId) {
@@ -72,11 +73,13 @@ export class PrecogMarketsClient {
       /** @type {PublicKey} */ this.programId = optsOrProgramId;
       /** @type {number} */ this.computeUnitMargin = 1.1;
       /** @type {string} */ this.priorityLevel = "Medium";
+      /** @type {Function|null} */ this.feeEstimator = null;
     } else {
       const opts = optsOrProgramId ?? {};
       this.programId = opts.programId ?? PROGRAM_ID;
       this.computeUnitMargin = opts.computeUnitMargin ?? 1.1;
       this.priorityLevel = opts.priorityLevel ?? "Medium";
+      this.feeEstimator = opts.feeEstimator ?? null;
     }
   }
 
@@ -917,51 +920,96 @@ export class PrecogMarketsClient {
   }
 
   /**
-   * Estimate the priority fee for a transaction using Helius's
-   * getPriorityFeeEstimate RPC method.
+   * Estimate the priority fee for a transaction.
    *
-   * Requires the connection to be pointed at a Helius RPC endpoint.
-   * Returns a `ComputeBudgetProgram.setComputeUnitPrice` instruction
-   * set to the "Medium" priority level (50th percentile).
+   * Uses the standard Solana RPC method `getRecentPrioritizationFees`
+   * which is supported by all RPC providers. Extracts writable accounts
+   * from the instructions for account-aware fee estimation.
+   *
+   * If a custom `feeEstimator` function was provided in the constructor,
+   * it will be used instead. This allows plugging in provider-specific
+   * APIs (e.g., Helius getPriorityFeeEstimate, Triton percentile API).
    *
    * @param {import("@solana/web3.js").TransactionInstruction[]} instructions - The instructions to estimate fees for
    * @param {PublicKey} feePayer - The fee payer for the transaction
    * @param {{ priorityLevel?: string, commitment?: string }} [opts]
-   *   priorityLevel — one of "Min", "Low", "Medium", "High", "VeryHigh" (default: "Medium")
+   *   priorityLevel - one of "Min", "Low", "Medium", "High", "VeryHigh" (default: "Medium")
    * @returns {Promise<{ priorityFee: number, instruction: import("@solana/web3.js").TransactionInstruction }>}
-   *   priorityFee — the estimated fee in microLamports per compute unit
-   *   instruction — a `ComputeBudgetProgram.setComputeUnitPrice` instruction ready to prepend
+   *   priorityFee - the estimated fee in microLamports per compute unit
+   *   instruction - a `ComputeBudgetProgram.setComputeUnitPrice` instruction ready to prepend
    */
   async estimatePriorityFee(instructions, feePayer, opts) {
     const priorityLevel = opts?.priorityLevel ?? this.priorityLevel;
 
-    // Build and serialize the transaction for the Helius API
-    const tx = new Transaction().add(...instructions);
-    tx.recentBlockhash = (await this.connection.getLatestBlockhash(opts?.commitment)).blockhash;
-    tx.feePayer = feePayer;
-    const serialized = bs58Encode(tx.serialize({ verifySignatures: false }));
-
-    const response = await fetch(this.connection.rpcEndpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: "precog-priority-fee",
-        method: "getPriorityFeeEstimate",
-        params: [{
-          transaction: serialized,
-          options: { priorityLevel },
-        }],
-      }),
-    });
-
-    const result = await response.json();
-
-    if (result.error) {
-      throw new Error(`Priority fee estimation failed: ${JSON.stringify(result.error)}`);
+    // Use custom estimator if provided
+    if (this.feeEstimator) {
+      const fee = await this.feeEstimator(this.connection, instructions, feePayer, { priorityLevel });
+      const priorityFee = Math.ceil(fee);
+      return {
+        priorityFee,
+        instruction: ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priorityFee }),
+      };
     }
 
-    const priorityFee = Math.ceil(result.result.priorityFeeEstimate ?? 0);
+    // Extract unique writable accounts for account-aware estimation
+    const seen = new Set();
+    const writableAccounts = [];
+    for (const ix of instructions) {
+      for (const key of ix.keys) {
+        if (key.isWritable) {
+          const addr = key.pubkey.toBase58();
+          if (!seen.has(addr)) {
+            seen.add(addr);
+            writableAccounts.push(key.pubkey);
+          }
+        }
+      }
+    }
+    // RPC allows max 128 accounts
+    const accountsToQuery = writableAccounts.slice(0, 128);
+
+    // Standard Solana RPC: getRecentPrioritizationFees
+    const recentFees = await this.connection.getRecentPrioritizationFees({
+      lockedWritableAccounts: accountsToQuery,
+    });
+
+    // Extract non-zero fees and sort ascending
+    const nonZeroFees = recentFees
+      .map(f => f.prioritizationFee)
+      .filter(f => f > 0)
+      .sort((a, b) => a - b);
+
+    // Map priority levels to percentiles
+    const PERCENTILES = {
+      Min:      10,
+      Low:      25,
+      Medium:   50,
+      High:     75,
+      VeryHigh: 90,
+    };
+
+    // Minimum floor per level (microLamports) for when data is sparse
+    const FLOORS = {
+      Min:      100,
+      Low:      1_000,
+      Medium:   10_000,
+      High:     100_000,
+      VeryHigh: 500_000,
+    };
+
+    const percentile = PERCENTILES[priorityLevel] ?? 50;
+    const floor = FLOORS[priorityLevel] ?? 10_000;
+
+    let priorityFee;
+    if (nonZeroFees.length === 0) {
+      priorityFee = floor;
+    } else {
+      const index = Math.min(
+        Math.max(Math.ceil((percentile / 100) * nonZeroFees.length) - 1, 0),
+        nonZeroFees.length - 1
+      );
+      priorityFee = Math.max(nonZeroFees[index], floor);
+    }
 
     return {
       priorityFee,
@@ -1003,9 +1051,9 @@ export class PrecogMarketsClient {
   }
 
   /**
-   * Send a signed transaction with SWQoS-optimized settings.
+   * Send a signed transaction with optimized settings.
    * Uses skipPreflight: true (simulation already done) and maxRetries: 0
-   * (caller handles retries) for best results with Helius staked connections.
+   * (caller handles retries) for best results with staked connections.
    *
    * @param {import("@solana/web3.js").Transaction} transaction - A fully signed transaction
    * @param {{ maxRetries?: number, skipPreflight?: boolean, preflightCommitment?: string }} [opts]
@@ -1022,7 +1070,7 @@ export class PrecogMarketsClient {
 
   /**
    * All-in-one: estimate CU + priority fee, build transaction, sign, and send
-   * with SWQoS-optimized settings.
+   * with optimized settings.
    *
    * @param {import("@solana/web3.js").TransactionInstruction[]} instructions
    * @param {import("@solana/web3.js").Signer[]} signers - First signer is the fee payer
@@ -1042,7 +1090,7 @@ export class PrecogMarketsClient {
     tx.feePayer = feePayer;
     tx.sign(...signers);
 
-    // Send with SWQoS settings
+    // Send with optimized settings
     const signature = await this.sendRawTransaction(tx, opts);
 
     return { signature, estimatedUnits, priorityFee };

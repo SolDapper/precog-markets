@@ -12,6 +12,7 @@ A complete, zero-dependency JavaScript SDK (ESM) for interacting with the Solana
 - [Architecture](#architecture)
 - [Module Structure](#module-structure)
 - [SPL Token / Token-2022 Markets](#spl-token--token-2022-markets)
+- [Token-2022 Extension Support](#token-2022-extension-support)
 - [Dispute Resolution](#dispute-resolution)
 - [Multi-Sig Governance](#multi-sig-governance-%EF%B8%8F-untested)
 - [Market Lifecycle](#market-lifecycle)
@@ -286,6 +287,65 @@ await client.placeTokenBet({
 });
 ```
 
+## Token-2022 Extension Support
+
+The on-chain program inspects a mint's Token-2022 extensions when a market is created and accepts only extensions that can't compromise vault accounting or payout math. The SDK mirrors this policy so you can check a mint client-side and fail fast with a descriptive reason instead of paying for a doomed transaction.
+
+**Allowed** (market creation succeeds):
+
+| Extension | Why it's safe |
+| --- | --- |
+| `TransferFeeConfig` | Fully supported — the program accounts for withheld fees in its math |
+| `MintCloseAuthority` | Affects only the mint account, never token accounts or transfers |
+| `DefaultAccountState` | The vault account is created during `CreateMarket`, so a frozen default fails cleanly and early |
+| `InterestBearingConfig` | Interest only affects the UI-scaled amount; the raw `u64` balance the program uses is unchanged |
+| `MetadataPointer` | Informational only |
+| `TokenMetadata` | Informational only |
+
+**Blocked** (market creation is rejected with a specific error):
+
+| Extension | Error | Reason |
+| --- | --- | --- |
+| `TransferHook` | `TransferHookNotAllowed` | Hook accounts can't be resolved by the token-moving instructions |
+| `NonTransferable` | `NonTransferableNotAllowed` | The program must move tokens between bettors and the vault |
+| `PermanentDelegate` | `PermanentDelegateNotAllowed` | A delegate could drain the vault |
+| `ConfidentialTransferMint` / `ConfidentialTransferFeeConfig` | `ConfidentialTransferNotAllowed` | Encrypted balances can't be read on-chain for vault accounting |
+| _any other extension_ | `UnsupportedTokenExtension` | Not yet reviewed for safety |
+
+### Validate a mint before creating a market
+
+```js
+import { validateMintForMarket, getTransferFeeConfig } from "precog-markets";
+
+// From raw account bytes (connection.getAccountInfo(mint).data)
+const info = await connection.getAccountInfo(tokenMint);
+const result = validateMintForMarket(info.data);
+if (!result.ok) {
+  console.error(`Unusable mint: ${result.error}`);
+  console.error("Blocked:", result.blocked.map((e) => e.name));
+}
+
+// Read the active transfer-fee schedule (null if the mint has no fee)
+const fee = getTransferFeeConfig(info.data); // { feeBps, maxFee } | null
+```
+
+The client wraps these with account fetching:
+
+```js
+const check = await client.validateTokenMint(tokenMint);   // MintValidation
+const fee = await client.fetchTransferFeeConfig(tokenMint); // { feeBps, maxFee } | null
+const exts = await client.fetchMintExtensions(tokenMint);   // ParsedExtension[]
+```
+
+You can also let `createTokenMarket` guard itself by passing `validateMint: true`, which fetches the mint and throws before sending if any extension is unsupported:
+
+```js
+await client.createTokenMarket({
+  /* ...usual params... */
+  validateMint: true,
+});
+```
+
 ## Dispute Resolution
 
 After a market is resolved, a 24-hour dispute window begins. During this window the market authority can change the winning outcome or void the market entirely.
@@ -486,7 +546,7 @@ const sig = await client.sendRawTransaction(signedTx);
 
 ## Error Handling
 
-The SDK exports all 64 program error codes:
+The SDK exports all 67 program error codes:
 
 ```js
 import { ErrorCode, ErrorName } from "precog-markets";

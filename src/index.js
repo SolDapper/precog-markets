@@ -41,6 +41,10 @@ export {
   ProposalActionTag,
   ErrorCode,
   ErrorName,
+  MintExtension,
+  MintExtensionName,
+  ALLOWED_MINT_EXTENSIONS,
+  BLOCKED_MINT_EXTENSIONS,
 } from "./constants.js";
 
 // ── PDA derivation ───────────────────────────────────────────────────
@@ -58,6 +62,15 @@ export {
 
 // ── Serialization ────────────────────────────────────────────────────
 export { BorshWriter, BorshReader } from "./serialization.js";
+
+// ── Token-2022 mint extension helpers ────────────────────────────────
+export {
+  MINT_BASE_SIZE,
+  parseMintExtensions,
+  validateMintForMarket,
+  getTransferFeeConfig,
+  hasMintExtension,
+} from "./token.js";
 
 // ── Account decoders ─────────────────────────────────────────────────
 export {

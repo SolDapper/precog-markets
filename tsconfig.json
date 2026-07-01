@@ -1,0 +1,16 @@
+{
+  "// note": "Validates the hand-written .d.ts declarations and a consumer type-test. Run: npm run typecheck",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2020"],
+    "types": ["node"],
+    "allowJs": false,
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.d.ts", "typecheck/**/*.ts"]
+}

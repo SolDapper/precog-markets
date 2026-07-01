@@ -34,6 +34,12 @@ import {
 
 import * as ix from "./instructions.js";
 
+import {
+  validateMintForMarket,
+  getTransferFeeConfig,
+  parseMintExtensions,
+} from "./token.js";
+
 // ═══════════════════════════════════════════════════════════════════════
 // Minimal base58 encoder for memcmp filter bytes
 // ═══════════════════════════════════════════════════════════════════════
@@ -396,6 +402,8 @@ export class PrecogMarketsClient {
    * @param {PublicKey} params.tokenProgram - TOKEN_PROGRAM_ID or TOKEN_2022_PROGRAM_ID.
    * @param {number} params.denomination - 1=SplToken, 2=Token2022.
    * @param {boolean} [params.authorityIsMultisig=false]
+   * @param {boolean} [params.validateMint=false] - If true, fetch the mint and
+   *   reject unsupported Token-2022 extensions before sending the transaction.
    * @param {import("@solana/web3.js").ConfirmOptions} [params.opts]
    */
   async createTokenMarket(params) {
@@ -404,6 +412,20 @@ export class PrecogMarketsClient {
     const [vault] = await this.findVault(market);
     const [vaultAuthority] = await this.findVaultAuthority(market);
     const [protocolConfig] = await this.findProtocolConfig();
+
+    // Optional client-side pre-flight: reject mints the program won't accept
+    // before spending a transaction on them. Off by default to avoid an extra
+    // RPC round-trip for callers who have already validated the mint.
+    if (params.validateMint) {
+      const v = await this.validateTokenMint(params.tokenMint);
+      if (!v.ok) {
+        const names = v.blocked.map((e) => e.name).join(", ");
+        throw new Error(
+          `mint ${params.tokenMint.toBase58()} has unsupported extension(s): ${names} ` +
+            `(program error: ${v.error})`
+        );
+      }
+    }
 
     const instruction = ix.createMarket(
       {
@@ -454,7 +476,7 @@ export class PrecogMarketsClient {
       params.bettor.publicKey,
       params.outcomeIndex
     );
-    const [protocolConfig] = this.findProtocolConfig();
+    const [protocolConfig] = await this.findProtocolConfig();
 
     const instruction = ix.placeBet(
       { market: params.market, vault, position, bettor: params.bettor.publicKey, protocolConfig },
@@ -490,7 +512,7 @@ export class PrecogMarketsClient {
       params.bettor.publicKey,
       params.outcomeIndex
     );
-    const [protocolConfig] = this.findProtocolConfig();
+    const [protocolConfig] = await this.findProtocolConfig();
 
     const instruction = ix.placeBet(
       {
@@ -514,6 +536,52 @@ export class PrecogMarketsClient {
       params.opts
     );
     return { signature, position };
+  }
+
+  /**
+   * Fetch a mint account and report whether the program would accept it for a
+   * token market, mirroring the on-chain extension policy. Lets callers fail
+   * fast with a descriptive reason instead of sending a doomed transaction.
+   *
+   * @param {PublicKey} tokenMint
+   * @returns {Promise<import("./token.js").MintValidation>}
+   */
+  async validateTokenMint(tokenMint) {
+    const info = await this.connection.getAccountInfo(tokenMint);
+    if (!info) {
+      throw new Error(`mint ${tokenMint.toBase58()} not found`);
+    }
+    return validateMintForMarket(info.data);
+  }
+
+  /**
+   * Fetch a mint account and return its active (newer) transfer-fee schedule,
+   * or null if the mint has no TransferFeeConfig extension.
+   *
+   * @param {PublicKey} tokenMint
+   * @returns {Promise<import("./token.js").TransferFeeConfig | null>}
+   */
+  async fetchTransferFeeConfig(tokenMint) {
+    const info = await this.connection.getAccountInfo(tokenMint);
+    if (!info) {
+      throw new Error(`mint ${tokenMint.toBase58()} not found`);
+    }
+    return getTransferFeeConfig(info.data);
+  }
+
+  /**
+   * Fetch a mint account and list every Token-2022 extension present on it,
+   * each tagged with whether the program allows it.
+   *
+   * @param {PublicKey} tokenMint
+   * @returns {Promise<import("./token.js").ParsedExtension[]>}
+   */
+  async fetchMintExtensions(tokenMint) {
+    const info = await this.connection.getAccountInfo(tokenMint);
+    if (!info) {
+      throw new Error(`mint ${tokenMint.toBase58()} not found`);
+    }
+    return parseMintExtensions(info.data);
   }
 
   /**

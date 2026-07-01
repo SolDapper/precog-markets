@@ -96,6 +96,77 @@ export type ProposalActionTagValue = (typeof ProposalActionTag)[keyof typeof Pro
 export declare const ErrorCode: Record<number, string>;
 export declare const ErrorName: Record<string, number>;
 
+export declare const MintExtension: {
+  readonly TransferFeeConfig: 1;
+  readonly MintCloseAuthority: 3;
+  readonly ConfidentialTransferMint: 5;
+  readonly TransferHook: 7;
+  readonly NonTransferable: 9;
+  readonly DefaultAccountState: 10;
+  readonly InterestBearingConfig: 11;
+  readonly PermanentDelegate: 12;
+  readonly MetadataPointer: 18;
+  readonly TokenMetadata: 19;
+  readonly ConfidentialTransferFeeConfig: 20;
+};
+export type MintExtensionValue = (typeof MintExtension)[keyof typeof MintExtension];
+export declare const MintExtensionName: Record<number, string>;
+export declare const ALLOWED_MINT_EXTENSIONS: readonly MintExtensionValue[];
+export declare const BLOCKED_MINT_EXTENSIONS: Record<number, string>;
+
+// ═══════════════════════════════════════════════════════════════════════
+// Token-2022 Mint Extension Helpers
+// ═══════════════════════════════════════════════════════════════════════
+
+export declare const MINT_BASE_SIZE: 82;
+
+export interface ParsedExtension {
+  /** Extension type ID (u16). */
+  type: number;
+  /** Human-readable name, or `Unknown(<id>)`. */
+  name: string;
+  /** Byte offset of the TLV record within the account. */
+  offset: number;
+  /** Length of the extension's data section. */
+  length: number;
+  /** Whether the program accepts this extension. */
+  allowed: boolean;
+  /** Program error name if blocked, else null. */
+  error: string | null;
+}
+
+export interface MintValidation {
+  /** True if the program would accept this mint. */
+  ok: boolean;
+  /** All extensions found on the mint. */
+  extensions: ParsedExtension[];
+  /** Extensions that would be rejected. */
+  blocked: ParsedExtension[];
+  /** Program error name of the first blocking extension, or null if `ok`. */
+  error: string | null;
+}
+
+export interface TransferFeeConfig {
+  /** Current (newer) transfer fee in basis points. */
+  feeBps: number;
+  /** Current (newer) maximum fee, in token base units. */
+  maxFee: bigint;
+}
+
+export declare function parseMintExtensions(
+  mintData: Uint8Array | Buffer | number[] | { data: any }
+): ParsedExtension[];
+export declare function validateMintForMarket(
+  mintData: Uint8Array | Buffer | number[] | { data: any }
+): MintValidation;
+export declare function getTransferFeeConfig(
+  mintData: Uint8Array | Buffer | number[] | { data: any }
+): TransferFeeConfig | null;
+export declare function hasMintExtension(
+  mintData: Uint8Array | Buffer | number[] | { data: any },
+  extensionType: number
+): boolean;
+
 // ═══════════════════════════════════════════════════════════════════════
 // PDA Derivation
 // ═══════════════════════════════════════════════════════════════════════
@@ -600,8 +671,18 @@ export declare class PrecogMarketsClient {
     tokenProgram: PublicKey;
     denomination: number;
     authorityIsMultisig?: boolean;
+    validateMint?: boolean;
     opts?: ConfirmOptions;
   }): Promise<{ signature: string; market: PublicKey; vault: PublicKey; vaultAuthority: PublicKey }>;
+
+  /** Fetch a mint and report whether the program would accept it for a market. */
+  validateTokenMint(tokenMint: PublicKey): Promise<MintValidation>;
+
+  /** Fetch a mint's active transfer-fee schedule, or null if it has none. */
+  fetchTransferFeeConfig(tokenMint: PublicKey): Promise<TransferFeeConfig | null>;
+
+  /** Fetch and classify every Token-2022 extension on a mint. */
+  fetchMintExtensions(tokenMint: PublicKey): Promise<ParsedExtension[]>;
 
   placeSolBet(params: {
     bettor: Signer;

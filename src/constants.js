@@ -156,28 +156,83 @@ export const ErrorCode = /** @type {const} */ ({
   42: "TransferFeeExceedsLimit",
   43: "InsufficientPostFeeAmount",
   44: "TransferHookNotAllowed",
-  45: "UnsupportedTokenExtension",
-  46: "HarvestNotAuthorized",
-  47: "NewDeadlineInPast",
-  48: "MarketNotOpenForUpdate",
-  49: "MultisigSignersFull",
-  50: "CannotRemoveSigner",
-  51: "SignerNotFound",
-  52: "MarketNotRequired",
-  53: "InvalidMultisigThreshold",
-  54: "TooManyMultisigSigners",
-  55: "DuplicateMultisigSigner",
-  56: "InsufficientMultisigSignatures",
-  57: "SignerNotMultisigMember",
-  58: "ProposalAlreadyExecuted",
-  59: "ProposalExpired",
-  60: "AlreadyApprovedProposal",
-  61: "SignerSetChanged",
-  62: "FeeBelowProtocolMinimum",
-  63: "OutcomeUnchanged",
+  45: "NonTransferableNotAllowed",
+  46: "PermanentDelegateNotAllowed",
+  47: "ConfidentialTransferNotAllowed",
+  48: "UnsupportedTokenExtension",
+  49: "HarvestNotAuthorized",
+  50: "NewDeadlineInPast",
+  51: "MarketNotOpenForUpdate",
+  52: "MultisigSignersFull",
+  53: "CannotRemoveSigner",
+  54: "SignerNotFound",
+  55: "MarketNotRequired",
+  56: "InvalidMultisigThreshold",
+  57: "TooManyMultisigSigners",
+  58: "DuplicateMultisigSigner",
+  59: "InsufficientMultisigSignatures",
+  60: "SignerNotMultisigMember",
+  61: "ProposalAlreadyExecuted",
+  62: "ProposalExpired",
+  63: "AlreadyApprovedProposal",
+  64: "SignerSetChanged",
+  65: "FeeBelowProtocolMinimum",
+  66: "OutcomeUnchanged",
 });
 
 /** Map error name → code */
 export const ErrorName = Object.fromEntries(
   Object.entries(ErrorCode).map(([k, v]) => [v, Number(k)])
 );
+
+// ── Token-2022 mint extension type IDs ───────────────────────────────
+// Source: spl_token_2022::extension::ExtensionType (the u16 TLV discriminant).
+// These mirror the on-chain program's extension allow/block policy so a mint
+// can be validated client-side *before* a market-creation or bet transaction
+// is sent, turning a failed transaction into an immediate, descriptive error.
+export const MintExtension = /** @type {const} */ ({
+  TransferFeeConfig: 1,
+  MintCloseAuthority: 3,
+  ConfidentialTransferMint: 5,
+  TransferHook: 7,
+  NonTransferable: 9,
+  DefaultAccountState: 10,
+  InterestBearingConfig: 11,
+  PermanentDelegate: 12,
+  MetadataPointer: 18,
+  TokenMetadata: 19,
+  ConfidentialTransferFeeConfig: 20,
+});
+
+/** Reverse map: extension type ID → name */
+export const MintExtensionName = Object.fromEntries(
+  Object.entries(MintExtension).map(([k, v]) => [v, k])
+);
+
+/**
+ * Extension types the program accepts on a market's mint.
+ * Each is either fully handled (TransferFeeConfig) or provably harmless to the
+ * program's balance/payout math (see per-entry reasoning in the on-chain
+ * token_utils.rs). Any type NOT in this set is rejected.
+ */
+export const ALLOWED_MINT_EXTENSIONS = /** @type {const} */ ([
+  MintExtension.TransferFeeConfig,
+  MintExtension.MintCloseAuthority,
+  MintExtension.DefaultAccountState,
+  MintExtension.InterestBearingConfig,
+  MintExtension.MetadataPointer,
+  MintExtension.TokenMetadata,
+]);
+
+/**
+ * Extension types the program explicitly rejects, mapped to the specific
+ * program error each one raises. Extension types that are neither allowed nor
+ * in this table raise the generic `UnsupportedTokenExtension`.
+ */
+export const BLOCKED_MINT_EXTENSIONS = /** @type {const} */ ({
+  [MintExtension.TransferHook]: "TransferHookNotAllowed",
+  [MintExtension.NonTransferable]: "NonTransferableNotAllowed",
+  [MintExtension.PermanentDelegate]: "PermanentDelegateNotAllowed",
+  [MintExtension.ConfidentialTransferMint]: "ConfidentialTransferNotAllowed",
+  [MintExtension.ConfidentialTransferFeeConfig]: "ConfidentialTransferNotAllowed",
+});
